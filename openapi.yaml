@@ -59,6 +59,9 @@ paths:
       summary: Create task
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TaskCreate' }}}}
       responses: { '200': { description: OK } }
+    get:
+      summary: List tasks
+      responses: { '200': { description: OK } }
   /contexts/{context_id}/tasks/{task_id}:
     parameters:
       - name: context_id
@@ -77,6 +80,83 @@ paths:
     post:
       summary: Record handoff
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/HandoffCreate' }}}}
+      responses: { '200': { description: OK } }
+  /contexts/{context_id}/handoffs:
+    parameters:
+      - name: context_id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      summary: List handoffs
+      responses: { '200': { description: OK } }
+  /orchestrations:
+    post:
+      summary: Create orchestration run
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OrchestrationCreate' }}}}
+      responses: { '200': { description: OK } }
+  /orchestrations/{run_id}:
+    parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      summary: Get orchestration run
+      responses: { '200': { description: OK } }
+  /orchestrations/{run_id}/events:
+    parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema: { type: string }
+      - name: agent_id
+        in: query
+        schema: { type: string }
+      - name: type
+        in: query
+        schema: { type: string }
+      - name: category
+        in: query
+        schema: { type: string }
+      - name: tag
+        in: query
+        schema: { type: string }
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 0 }
+      - name: after
+        in: query
+        schema: { type: string }
+    get:
+      summary: List events for orchestration run
+      responses: { '200': { description: OK } }
+  /contexts/{context_id}/events:
+    parameters:
+      - name: context_id
+        in: path
+        required: true
+        schema: { type: string }
+      - name: agent_id
+        in: query
+        schema: { type: string }
+      - name: type
+        in: query
+        schema: { type: string }
+      - name: category
+        in: query
+        schema: { type: string }
+      - name: tag
+        in: query
+        schema: { type: string }
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 0 }
+      - name: after
+        in: query
+        schema: { type: string }
+    get:
+      summary: List events for context
       responses: { '200': { description: OK } }
 components:
   schemas:
@@ -143,3 +223,47 @@ components:
         task: { type: string }
         summary: { type: string }
         next_steps: { type: string }
+    OrchestrationPolicy:
+      type: object
+      properties:
+        escalate_on_impasse: { type: boolean, default: true }
+        max_agents: { type: integer }
+        max_depth: { type: integer }
+        extra: { type: object, additionalProperties: true }
+    OrchestrationCreate:
+      type: object
+      required: [ context_id, prompt ]
+      properties:
+        context_id: { type: string }
+        prompt: { type: string }
+        created_by: { type: string, default: user }
+        policy: { $ref: '#/components/schemas/OrchestrationPolicy' }
+    OrchestrationRun:
+      type: object
+      required: [ id, context_id, prompt, created_by, status, created_at ]
+      properties:
+        id: { type: string }
+        context_id: { type: string }
+        prompt: { type: string }
+        created_by: { type: string }
+        status: { type: string, enum: [pending, running, completed, failed] }
+        policy: { $ref: '#/components/schemas/OrchestrationPolicy' }
+        created_at: { type: string, format: date-time }
+    Event:
+      type: object
+      required: [ id, context_id, category, type, actor, created_at ]
+      properties:
+        id: { type: string }
+        context_id: { type: string }
+        run_id: { type: string }
+        category: { type: string, enum: [user, system, broker, agent, repo, task, handoff, memory, orchestration, plan] }
+        type: { type: string }
+        actor: { type: string, enum: [user, broker, agent] }
+        message: { type: string }
+        tags: { type: array, items: { type: string } }
+        agent_id: { type: string }
+        task_id: { type: string }
+        handoff_id: { type: string }
+        repo: { $ref: '#/components/schemas/RepoRef' }
+        data: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
