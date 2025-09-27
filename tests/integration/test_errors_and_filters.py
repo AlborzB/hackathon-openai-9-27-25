@@ -54,6 +54,12 @@ def test_422_invalid_payloads(client: TestClient):
     assert r.status_code == 422
 
 
+def test_404_update_nonexistent_task(client: TestClient):
+    ctx = _mk_context(client, "ctx-404-task")
+    r = client.patch(f"/contexts/{ctx}/tasks/task_nope", json={"status": "done"})
+    assert r.status_code == 404
+
+
 def test_event_filters_agent_type_category_tag_limit(client: TestClient):
     ctx = _mk_context(client, "ctx-filters")
 
@@ -126,4 +132,3 @@ def test_openapi_includes_new_paths(client: TestClient):
         "/contexts/{context_id}/handoffs",
     ):
         assert p in paths, f"missing {p} in OpenAPI"
-
