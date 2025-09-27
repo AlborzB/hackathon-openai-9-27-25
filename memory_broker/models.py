@@ -146,6 +146,13 @@ class OrchestrationRun(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class OrchestrationCreate(BaseModel):
+    context_id: str
+    prompt: str
+    created_by: str = "user"
+    policy: Optional[OrchestrationPolicy] = None
+
+
 # Event models
 
 EventCategory = Literal[
@@ -180,6 +187,21 @@ class Event(BaseModel):
     repo: Optional[RepoRef] = None
     data: Dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class EventCreate(BaseModel):
+    context_id: str
+    run_id: Optional[str] = None
+    category: EventCategory
+    type: str
+    actor: EventActor
+    message: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    agent_id: Optional[str] = None
+    task_id: Optional[str] = None
+    handoff_id: Optional[str] = None
+    repo: Optional[RepoRef] = None
+    data: Dict[str, Any] = Field(default_factory=dict)
 
 
 # Deterministic Plan schema (v1)
