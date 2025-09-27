@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field
 
 
@@ -120,3 +120,117 @@ class HandoffCreate(BaseModel):
     summary: str
     next_steps: Optional[str] = None
 
+
+# Orchestration models
+
+OrchestrationStatus = Literal["pending", "running", "completed", "failed"]
+
+
+class OrchestrationPolicy(BaseModel):
+    # Whether to escalate to user when blocked
+    escalate_on_impasse: bool = True
+    # Optional caps to keep orchestration bounded
+    max_agents: Optional[int] = None
+    max_depth: Optional[int] = None
+    # Reserved for future policy knobs
+    extra: Dict[str, Any] = Field(default_factory=dict)
+
+
+class OrchestrationRun(BaseModel):
+    id: str
+    context_id: str
+    prompt: str
+    created_by: str = "user"
+    status: OrchestrationStatus = "pending"
+    policy: Optional[OrchestrationPolicy] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# Event models
+
+EventCategory = Literal[
+    "user",
+    "system",
+    "broker",
+    "agent",
+    "repo",
+    "task",
+    "handoff",
+    "memory",
+    "orchestration",
+    "plan",
+]
+
+EventActor = Literal["user", "broker", "agent"]
+
+
+class Event(BaseModel):
+    id: str
+    context_id: str
+    # run_id is optional so we can emit context-level events outside a run
+    run_id: Optional[str] = None
+    category: EventCategory
+    type: str
+    actor: EventActor
+    message: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    agent_id: Optional[str] = None
+    task_id: Optional[str] = None
+    handoff_id: Optional[str] = None
+    repo: Optional[RepoRef] = None
+    data: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# Deterministic Plan schema (v1)
+
+class AgentSpec(BaseModel):
+    name: str
+    role: Optional[str] = None
+    kind: AgentKind = "agent"
+    id: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class CreateAgentAction(BaseModel):
+    type: Literal["create_agent"] = "create_agent"
+    spec: AgentSpec
+
+
+class MessageAction(BaseModel):
+    type: Literal["message"] = "message"
+    agent_id: str
+    content: str
+
+
+class TaskCreateAction(BaseModel):
+    type: Literal["task.create"] = "task.create"
+    context_id: str
+    payload: TaskCreate
+
+
+class HandoffAction(BaseModel):
+    type: Literal["handoff"] = "handoff"
+    payload: HandoffCreate
+
+
+class SubprocessRunAction(BaseModel):
+    type: Literal["subprocess.run"] = "subprocess.run"
+    command: List[str]
+    env: Dict[str, str] = Field(default_factory=dict)
+    cwd: Optional[str] = None
+
+
+PlanAction = Union[
+    CreateAgentAction,
+    MessageAction,
+    TaskCreateAction,
+    HandoffAction,
+    SubprocessRunAction,
+]
+
+
+class PlanV1(BaseModel):
+    version: Literal["1"] = "1"
+    agents: List[AgentSpec] = Field(default_factory=list)
+    actions: List[PlanAction] = Field(default_factory=list)
