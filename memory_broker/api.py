@@ -180,7 +180,29 @@ def list_handoffs(context_id: str, store: MemoryStore = Depends(get_store)):
 @router.post("/orchestrations", response_model=OrchestrationRun)
 def create_orchestration(payload: OrchestrationCreate, store: MemoryStore = Depends(get_store)):
     try:
-        return store.create_orchestration(payload)
+        run = store.create_orchestration(payload)
+        # Emit user prompt and plan placeholder events to seed the feed
+        store.append_event(
+            EventCreate(
+                context_id=run.context_id,
+                run_id=run.id,
+                category="user",
+                type="user_message",
+                actor="user",
+                message=payload.prompt,
+            )
+        )
+        store.append_event(
+            EventCreate(
+                context_id=run.context_id,
+                run_id=run.id,
+                category="plan",
+                type="plan",
+                actor="broker",
+                message="planning_started",
+            )
+        )
+        return run
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
