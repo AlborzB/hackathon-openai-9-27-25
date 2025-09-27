@@ -8,10 +8,13 @@ from .models import (
     AgentCreate,
     ContextCreate,
     ContextPool,
+    Event,
     Handoff,
     HandoffCreate,
     MemoryCreate,
     MemoryItem,
+    OrchestrationCreate,
+    OrchestrationRun,
     RepoRef,
     Task,
     TaskCreate,
@@ -92,6 +95,14 @@ def update_task(context_id: str, task_id: str, payload: TaskUpdate, store: Memor
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@router.get("/contexts/{context_id}/tasks", response_model=List[Task])
+def list_tasks(context_id: str, store: MemoryStore = Depends(get_store)):
+    try:
+        return store.list_tasks(context_id)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.post("/handoffs", response_model=Handoff)
 def record_handoff(payload: HandoffCreate, store: MemoryStore = Depends(get_store)):
     try:
@@ -99,3 +110,77 @@ def record_handoff(payload: HandoffCreate, store: MemoryStore = Depends(get_stor
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+
+@router.get("/contexts/{context_id}/handoffs", response_model=List[Handoff])
+def list_handoffs(context_id: str, store: MemoryStore = Depends(get_store)):
+    try:
+        return store.list_handoffs(context_id)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# Orchestrations
+@router.post("/orchestrations", response_model=OrchestrationRun)
+def create_orchestration(payload: OrchestrationCreate, store: MemoryStore = Depends(get_store)):
+    try:
+        return store.create_orchestration(payload)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/orchestrations/{run_id}", response_model=OrchestrationRun)
+def get_orchestration(run_id: str, store: MemoryStore = Depends(get_store)):
+    try:
+        return store.get_orchestration(run_id)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/orchestrations/{run_id}/events", response_model=List[Event])
+def list_run_events(
+    run_id: str,
+    agent_id: Optional[str] = None,
+    type: Optional[str] = None,
+    category: Optional[str] = None,
+    tag: Optional[str] = None,
+    limit: Optional[int] = Query(default=None, ge=0),
+    after: Optional[str] = None,
+    store: MemoryStore = Depends(get_store),
+):
+    try:
+        return store.list_run_events(
+            run_id,
+            agent_id=agent_id,
+            type=type,
+            category=category,
+            tag=tag,
+            limit=limit,
+            after=after,
+        )
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/contexts/{context_id}/events", response_model=List[Event])
+def list_context_events(
+    context_id: str,
+    agent_id: Optional[str] = None,
+    type: Optional[str] = None,
+    category: Optional[str] = None,
+    tag: Optional[str] = None,
+    limit: Optional[int] = Query(default=None, ge=0),
+    after: Optional[str] = None,
+    store: MemoryStore = Depends(get_store),
+):
+    try:
+        return store.list_context_events(
+            context_id,
+            agent_id=agent_id,
+            type=type,
+            category=category,
+            tag=tag,
+            limit=limit,
+            after=after,
+        )
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
