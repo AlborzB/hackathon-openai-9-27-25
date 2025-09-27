@@ -65,24 +65,24 @@
 
 ## Active TODOs (Integration Testing)
 
-- [ ] Test Infra
-  - [ ] Add `requirements-dev.txt` with `pytest` pin and docs on installing dev deps.
-  - [ ] Add CI workflow to run `pytest -q` on PRs and main branch.
-  - [ ] Optional: Add `make test` target for local convenience.
+- [x] Test Infra
+  - [x] Add `requirements-dev.txt` with `pytest` pin and docs on installing dev deps.
+  - [x] Add CI workflow to run `pytest -q` on PRs and main branch.
+  - [x] Optional: Add `make test` target for local convenience.
 
-- [ ] API Edge/Negative Cases
-  - [ ] 404 on unknown `context_id` across endpoints (memories, tasks, events, repos, handoffs).
-  - [ ] 404 on unknown `run_id` for `/orchestrations/{run_id}` and `/orchestrations/{run_id}/events`.
-  - [ ] 422 on invalid payloads (e.g., missing fields in `HandoffCreate`, invalid task `status`).
-  - [ ] Repo link payload validation (invalid provider/owner/name/branch should 422).
-  - [ ] Task update for non-existent task returns 404.
+- [x] API Edge/Negative Cases
+  - [x] 404 on unknown `context_id` across endpoints (memories, tasks, events, repos, handoffs).
+  - [x] 404 on unknown `run_id` for `/orchestrations/{run_id}` and `/orchestrations/{run_id}/events`.
+  - [x] 422 on invalid payloads (e.g., missing fields in `HandoffCreate`, invalid task `status`).
+  - [x] Repo link payload validation (invalid provider/owner/name/branch should 422).
+  - [x] Task update for non-existent task returns 404.
 
-- [ ] Events Filtering & Ordering
-  - [ ] Verify filter by `agent_id` works.
-  - [ ] Verify filter by `type` works.
-  - [ ] Verify filter by `category` works.
-  - [ ] Verify filter by `tag` works.
-  - [ ] Verify `limit` returns the last N events.
+- [x] Events Filtering & Ordering
+  - [x] Verify filter by `agent_id` works.
+  - [x] Verify filter by `type` works.
+  - [x] Verify filter by `category` works.
+  - [x] Verify filter by `tag` works. (Added tags to memory/task events.)
+  - [x] Verify `limit` returns the last N events.
   - [ ] Add cursor support via `after` and test chronological pagination (pending implementation).
   - [ ] Assert stable chronological ordering guarantees (documented behavior).
 
