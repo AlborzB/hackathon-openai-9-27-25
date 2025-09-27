@@ -73,3 +73,18 @@ Next Steps
 - Implement lib/api/types.ts aligned with backend models.
 - Build read-only Dashboard feed with polling; add ChatInput stub.
 
+Mock Backend (for early UI wiring)
+- Located under `src/lib/api/mockBackend.ts` and implements `BrokerAPI` with:
+  - `listAgents()`, `listContexts()`, `listMemories()`, `listTasks()`, `listHandoffs()`
+  - `subscribe(fn)`: push notifications for new events
+  - `startScenario()`: runs a scripted timeline emitting notifications (agents, context, repo link, task, memories, handoff)
+- UI consumes notifications via `src/lib/state/store.ts`, which transforms them into feed events for rendering.
+
+Local structure (scaffolded)
+- `src/lib/api/types.ts` – shared types for API + UI feed
+- `src/lib/api/mockBackend.ts` – in-memory mock broker with a pre-scripted sequence
+- `src/lib/state/store.ts` – minimal feed store that subscribes to notifications
+- `src/components/feed/EventItem.tsx` – presentational component for events
+- `src/components/feed/EventList.tsx` – renders a list of events
+- `src/components/chat/ChatInput.tsx` – chat input stub that can emit user events locally
+- `src/routes/Dashboard.tsx` – composes feed + chat; wires store to mock backend
