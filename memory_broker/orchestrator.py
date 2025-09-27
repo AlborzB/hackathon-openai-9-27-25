@@ -209,21 +209,34 @@ def plan_and_execute_run(store: MemoryStore, run: OrchestrationRun) -> None:
     an inline plan in the request.
     """
     # Obtain plan
-    planner = get_planner()
-    plan = planner.plan(context_id=run.context_id, prompt=run.prompt)
+    try:
+        planner = get_planner()
+        plan = planner.plan(context_id=run.context_id, prompt=run.prompt)
 
-    # Emit plan-ready event (distinct from initial planning_started)
-    store.append_event(
-        EventCreate(
-            context_id=run.context_id,
-            run_id=run.id,
-            category="plan",
-            type="plan_ready",
-            actor="broker",
-            message="deterministic_plan_ready",
-            data={"actions": [getattr(a, "type", "?") for a in plan.actions]},
+        # Emit plan-ready event (distinct from initial planning_started)
+        store.append_event(
+            EventCreate(
+                context_id=run.context_id,
+                run_id=run.id,
+                category="plan",
+                type="plan_ready",
+                actor="broker",
+                message="deterministic_plan_ready",
+                data={"actions": [getattr(a, "type", "?") for a in plan.actions]},
+            )
         )
-    )
 
-    # Execute
-    execute_run(store, run, plan)
+        # Execute
+        execute_run(store, run, plan)
+    except Exception as e:  # pragma: no cover
+        store.update_orchestration_status(run.id, "failed")
+        store.append_event(
+            EventCreate(
+                context_id=run.context_id,
+                run_id=run.id,
+                category="orchestration",
+                type="run_failed",
+                actor="broker",
+                message=str(e),
+            )
+        )

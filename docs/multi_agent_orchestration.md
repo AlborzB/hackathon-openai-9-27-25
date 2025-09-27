@@ -15,6 +15,9 @@
   - Created on demand (upsert by name). One LLM context per agent via a separate Codex CLI subprocess and per‑agent working dir.
 - Orchestrator
   - Executes the LLM planning call (Codex CLI subprocess), validates its deterministic JSON output, and performs actions (ensure agents, create tasks, append memories, spawn agent sessions, etc.).
+  - Planner backends:
+    - `mock` (default): deterministic local plan suitable for dev/demo.
+    - `codex`: shells out to Codex CLI configured on the host to obtain a PlanV1 JSON (no creds are read or logged by the broker).
 - Frontend
   - Shows audit trail by calling GET endpoints for runs/events (and memories). Posts prompts that start orchestrations.
 
@@ -216,3 +219,11 @@ Use this checklist to drive implementation. Update this document as changes land
 ## Testing Reference
 - See `docs/integration_testing.md` for the integration test plan and current coverage expectations. Keep both documents updated together.
 - See `docs/frontend_contracts.md` for event shapes, UI mappings, and polling guidance.
+
+## Planner Configuration
+- Select planner via env: `BROKER_PLANNER=mock|codex` (default: `mock`).
+- Codex planner command: set `BROKER_PLANNER_COMMAND` to the full CLI invocation that reads prompt from stdin and returns model output on stdout. Example:
+  - `export BROKER_PLANNER=codex`
+  - `export BROKER_PLANNER_COMMAND="codex chat --model o4-mini"`
+- Planning timeout: `BROKER_PLANNER_TIMEOUT` (seconds, default: 60).
+- Security: the broker does not read or log credentials; Codex CLI must be configured separately (e.g., `~/.codex/auth.json`).
