@@ -9,6 +9,7 @@ from .models import (
     ContextCreate,
     ContextPool,
     Event,
+    EventCreate,
     Handoff,
     HandoffCreate,
     MemoryCreate,
@@ -54,7 +55,18 @@ def create_context(payload: ContextCreate, store: MemoryStore = Depends(get_stor
 @router.post("/contexts/{context_id}/repos", response_model=ContextPool)
 def link_repo(context_id: str, repo: RepoRef, store: MemoryStore = Depends(get_store)):
     try:
-        return store.link_repo(context_id, repo)
+        ctx = store.link_repo(context_id, repo)
+        # emit event
+        store.append_event(
+            EventCreate(
+                context_id=context_id,
+                category="repo",
+                type="repo_linked",
+                actor="broker",
+                repo=repo,
+            )
+        )
+        return ctx
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -62,7 +74,18 @@ def link_repo(context_id: str, repo: RepoRef, store: MemoryStore = Depends(get_s
 @router.post("/contexts/{context_id}/memories", response_model=MemoryItem)
 def add_memory(context_id: str, payload: MemoryCreate, store: MemoryStore = Depends(get_store)):
     try:
-        return store.add_memory(context_id, payload)
+        item = store.add_memory(context_id, payload)
+        store.append_event(
+            EventCreate(
+                context_id=context_id,
+                category="memory",
+                type="memory_added",
+                actor="broker",
+                message=item.text,
+                data={"author": item.author, "tags": item.tags},
+            )
+        )
+        return item
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -82,7 +105,18 @@ def list_memories(
 @router.post("/contexts/{context_id}/tasks", response_model=Task)
 def add_task(context_id: str, payload: TaskCreate, store: MemoryStore = Depends(get_store)):
     try:
-        return store.add_task(context_id, payload)
+        task = store.add_task(context_id, payload)
+        store.append_event(
+            EventCreate(
+                context_id=context_id,
+                category="task",
+                type="task_created",
+                actor="broker",
+                agent_id=task.assignee,
+                data={"task_id": task.id, "title": task.title},
+            )
+        )
+        return task
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -90,7 +124,18 @@ def add_task(context_id: str, payload: TaskCreate, store: MemoryStore = Depends(
 @router.patch("/contexts/{context_id}/tasks/{task_id}", response_model=Task)
 def update_task(context_id: str, task_id: str, payload: TaskUpdate, store: MemoryStore = Depends(get_store)):
     try:
-        return store.update_task(context_id, task_id, payload)
+        task = store.update_task(context_id, task_id, payload)
+        store.append_event(
+            EventCreate(
+                context_id=context_id,
+                category="task",
+                type="task_updated",
+                actor="broker",
+                agent_id=task.assignee,
+                data={"task_id": task.id},
+            )
+        )
+        return task
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -106,7 +151,19 @@ def list_tasks(context_id: str, store: MemoryStore = Depends(get_store)):
 @router.post("/handoffs", response_model=Handoff)
 def record_handoff(payload: HandoffCreate, store: MemoryStore = Depends(get_store)):
     try:
-        return store.record_handoff(payload)
+        ho = store.record_handoff(payload)
+        store.append_event(
+            EventCreate(
+                context_id=ho.context_id,
+                category="handoff",
+                type="handoff_recorded",
+                actor="broker",
+                agent_id=ho.to_agent,
+                task_id=ho.task_id,
+                data={"from": ho.from_agent, "to": ho.to_agent},
+            )
+        )
+        return ho
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
