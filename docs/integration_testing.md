@@ -87,10 +87,10 @@
   - [x] Assert stable chronological ordering guarantees (documented behavior).
 
 - [ ] Orchestrator & Plan Tests
-  - [ ] Plan schema validation: accept valid `PlanV1`, reject unknown actions/missing fields.
-  - [ ] Orchestrator stub emits before/after events for each action.
-  - [ ] Subprocess integration: ensure no credential leakage; rely on Codex CLI defaults or env path only.
-  - [ ] Run lifecycle events: `running` → `completed` or `failed` status transitions.
+  - [x] Plan schema validation: accept valid `PlanV1`, reject unknown actions/missing fields.
+  - [x] Orchestrator stub emits before/after events for each action.
+  - [x] Subprocess integration: ensure no credential leakage; rely on Codex CLI defaults or env path only. (stubbed)
+  - [x] Run lifecycle events: `running` → `completed` or `failed` status transitions.
 
 - [ ] Persistence Backend (JSON) — when implemented
   - [ ] Implement JSON store backend and toggle via `MEMORY_BROKER_STORAGE=json`.
@@ -106,5 +106,5 @@
   - [ ] Recommend polling intervals and paging usage in docs with references to tested behavior.
 
 - [ ] Docs Sync
-  - [ ] Keep this file and `docs/multi_agent_orchestration.md` aligned as features land (SSE, pagination, orchestrator).
+  - [x] Keep this file and `docs/multi_agent_orchestration.md` aligned as features land (SSE, pagination, orchestrator). (Updated for parser/orchestrator stub)
   - [ ] Update `openapi.yaml` when endpoints change and verify tests against updated routes.

@@ -66,6 +66,9 @@ class MemoryStore:
     def get_orchestration(self, run_id: str) -> OrchestrationRun:  # pragma: no cover
         raise NotImplementedError
 
+    def update_orchestration_status(self, run_id: str, status: str) -> OrchestrationRun:  # pragma: no cover
+        raise NotImplementedError
+
     # Events
     def append_event(self, payload: EventCreate) -> Event:  # pragma: no cover
         raise NotImplementedError

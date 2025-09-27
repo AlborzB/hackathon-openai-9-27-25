@@ -185,6 +185,14 @@ class InMemoryStore(MemoryStore):
             raise KeyError(f"run not found: {run_id}")
         return run
 
+    def update_orchestration_status(self, run_id: str, status: str) -> OrchestrationRun:
+        run = self._runs.get(run_id)
+        if not run:
+            raise KeyError(f"run not found: {run_id}")
+        run.status = status  # type: ignore[assignment]
+        self._runs[run_id] = run
+        return run
+
     # Events
     def append_event(self, payload: EventCreate) -> Event:
         # ensure context exists and optionally run exists

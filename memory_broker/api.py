@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from typing import List, Optional
 
 from .models import (
@@ -22,6 +22,7 @@ from .models import (
     TaskUpdate,
 )
 from .store.base import MemoryStore
+from .orchestrator import execute_run, plan_and_execute_run
 
 
 def get_store(store: MemoryStore = Depends()) -> MemoryStore:
@@ -64,6 +65,12 @@ def link_repo(context_id: str, repo: RepoRef, store: MemoryStore = Depends(get_s
                 type="repo_linked",
                 actor="broker",
                 repo=repo,
+                data={
+                    "provider": repo.provider,
+                    "owner": repo.owner,
+                    "name": repo.name,
+                    "branch": repo.branch,
+                },
             )
         )
         return ctx
@@ -181,7 +188,11 @@ def list_handoffs(context_id: str, store: MemoryStore = Depends(get_store)):
 
 # Orchestrations
 @router.post("/orchestrations", response_model=OrchestrationRun)
-def create_orchestration(payload: OrchestrationCreate, store: MemoryStore = Depends(get_store)):
+def create_orchestration(
+    payload: OrchestrationCreate,
+    background: BackgroundTasks,
+    store: MemoryStore = Depends(get_store),
+):
     try:
         run = store.create_orchestration(payload)
         # Emit user prompt and plan placeholder events to seed the feed
@@ -203,6 +214,31 @@ def create_orchestration(payload: OrchestrationCreate, store: MemoryStore = Depe
                 type="plan",
                 actor="broker",
                 message="planning_started",
+            )
+        )
+        # If a plan is provided (testing/local execution), execute synchronously
+        if getattr(payload, "plan", None) is not None:
+            execute_run(store, run, payload.plan)  # type: ignore[arg-type]
+        else:
+            # Otherwise, plan and execute in the background
+            background.add_task(plan_and_execute_run, store, run)
+        return run
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/orchestrations/{run_id}/cancel", response_model=OrchestrationRun)
+def cancel_orchestration(run_id: str, store: MemoryStore = Depends(get_store)):
+    try:
+        run = store.update_orchestration_status(run_id, "canceled")
+        store.append_event(
+            EventCreate(
+                context_id=run.context_id,
+                run_id=run.id,
+                category="orchestration",
+                type="run_canceled",
+                actor="broker",
+                message="orchestration_canceled",
             )
         )
         return run

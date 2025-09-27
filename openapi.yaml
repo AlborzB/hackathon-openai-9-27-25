@@ -93,7 +93,17 @@ paths:
   /orchestrations:
     post:
       summary: Create orchestration run
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/OrchestrationCreate' }}}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/OrchestrationCreate'
+                - type: object
+                  properties:
+                    plan:
+                      $ref: '#/components/schemas/PlanV1'
       responses: { '200': { description: OK } }
   /orchestrations/{run_id}:
     parameters:
@@ -130,6 +140,15 @@ paths:
         schema: { type: string }
     get:
       summary: List events for orchestration run
+      responses: { '200': { description: OK } }
+  /orchestrations/{run_id}/cancel:
+    parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      summary: Cancel an orchestration run
       responses: { '200': { description: OK } }
   /contexts/{context_id}/events:
     parameters:
@@ -238,6 +257,73 @@ components:
         prompt: { type: string }
         created_by: { type: string, default: user }
         policy: { $ref: '#/components/schemas/OrchestrationPolicy' }
+    PlanV1:
+      type: object
+      required: [ version ]
+      properties:
+        version: { type: string, enum: [ '1' ] }
+        agents:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentSpec'
+        actions:
+          type: array
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/CreateAgentAction'
+              - $ref: '#/components/schemas/MessageAction'
+              - $ref: '#/components/schemas/TaskCreateAction'
+              - $ref: '#/components/schemas/HandoffAction'
+              - $ref: '#/components/schemas/SubprocessRunAction'
+    AgentSpec:
+      type: object
+      required: [ name ]
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        role: { type: string }
+        kind: { type: string, enum: [ human, agent ], default: agent }
+        id: { type: string }
+        metadata: { type: object, additionalProperties: true }
+    CreateAgentAction:
+      type: object
+      additionalProperties: false
+      required: [ type, spec ]
+      properties:
+        type: { type: string, enum: [ create_agent ] }
+        spec: { $ref: '#/components/schemas/AgentSpec' }
+    MessageAction:
+      type: object
+      additionalProperties: false
+      required: [ type, agent_id, content ]
+      properties:
+        type: { type: string, enum: [ message ] }
+        agent_id: { type: string }
+        content: { type: string }
+    TaskCreateAction:
+      type: object
+      additionalProperties: false
+      required: [ type, context_id, payload ]
+      properties:
+        type: { type: string, enum: [ 'task.create' ] }
+        context_id: { type: string }
+        payload: { $ref: '#/components/schemas/TaskCreate' }
+    HandoffAction:
+      type: object
+      additionalProperties: false
+      required: [ type, payload ]
+      properties:
+        type: { type: string, enum: [ handoff ] }
+        payload: { $ref: '#/components/schemas/HandoffCreate' }
+    SubprocessRunAction:
+      type: object
+      additionalProperties: false
+      required: [ type, command ]
+      properties:
+        type: { type: string, enum: [ 'subprocess.run' ] }
+        command: { type: array, items: { type: string } }
+        env: { type: object, additionalProperties: { type: string } }
+        cwd: { type: string }
     OrchestrationRun:
       type: object
       required: [ id, context_id, prompt, created_by, status, created_at ]

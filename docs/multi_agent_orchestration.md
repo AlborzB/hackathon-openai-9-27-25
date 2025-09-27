@@ -156,7 +156,7 @@ Use this checklist to drive implementation. Update this document as changes land
   - [x] GET `/contexts/{id}/events` to list context-wide events (supports filters/paging).
   - [x] GET `/contexts/{id}/tasks` to list tasks for Context Detail view.
   - [x] GET `/contexts/{id}/handoffs` to list handoffs for Handoff Center.
-  - [ ] POST `/orchestrations/{id}/cancel` (optional safety).
+  - [x] POST `/orchestrations/{id}/cancel` (optional safety).
   - [x] Update `openapi.yaml` and README with new endpoints.
 
 - [ ] Event Emission (Wire Up Existing Actions)
@@ -166,22 +166,22 @@ Use this checklist to drive implementation. Update this document as changes land
   - [x] On `PATCH /contexts/{id}/tasks/{task_id}`: emit `task_updated` event.
   - [x] On `POST /handoffs`: emit `handoff_recorded` event.
   - [x] On `POST /contexts/{id}/memories`: emit `memory_appended` event.
-  - [ ] Standardize `data` payloads (include relevant ids: task_id, memory_id, handoff_id, repo, etc.).
+  - [x] Standardize `data` payloads (include relevant ids: task_id, memory_id, handoff_id, repo, etc.).
 
 - [ ] Event Schema & Filtering
   - [x] Add `category` computed on the backend for filtering (decision | incident | progress | task | handoff).
   - [x] Add `actor` to identify event origin ("user" | agent_id | "system").
   - [x] Support query params for events endpoints: `?agent_id=&type=&category=&tag=&repo=&limit=&after=` (partial: `agent_id,type,category,tag,limit`).
-  - [ ] Ensure chronological sort and pagination (cursor or time-based).
+  - [x] Ensure chronological sort and pagination (cursor by event id implemented; stable ordering).
 
 - [ ] LLM Deterministic Plan Schema (v1)
   - [x] Implement Pydantic models for schema v1 (top-level + actions whitelist).
-  - [ ] Parser/validator that rejects unknown actions and missing fields.
-  - [ ] Map actions to store/api operations; emit events before/after each action.
+  - [x] Parser/validator that rejects unknown actions and missing fields.
+  - [x] Map actions to store/api operations; emit events before/after each action.
   - [ ] Versioning strategy (`version: "1"`) for forward compatibility.
 
 - [ ] Orchestrator Runner
-  - [ ] `orchestrator.py` service to execute runs asynchronously.
+  - [ ] `orchestrator.py` service to execute runs asynchronously. (Current: synchronous when `plan` provided; background planner+executor added for no-plan runs.)
   - [ ] Spawn Codex CLI subprocess for planning (separate working dir per run).
   - [ ] Spawn per-agent Codex sessions for `run_codex_session` with isolated dirs (`runs/<run>/<agent>/`).
   - [ ] Log subprocess stdout/err to run-scoped files; emit `agent_message` or `command_executed` events.

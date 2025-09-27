@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, Field
+from pydantic.config import ConfigDict
 
 
 AgentKind = Literal["human", "agent"]
@@ -146,11 +147,7 @@ class OrchestrationRun(BaseModel):
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
-class OrchestrationCreate(BaseModel):
-    context_id: str
-    prompt: str
-    created_by: str = "user"
-    policy: Optional[OrchestrationPolicy] = None
+ # NOTE: OrchestrationCreate is defined later to include optional `plan` for tests/local execution
 
 
 # Event models
@@ -207,6 +204,7 @@ class EventCreate(BaseModel):
 # Deterministic Plan schema (v1)
 
 class AgentSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     name: str
     role: Optional[str] = None
     kind: AgentKind = "agent"
@@ -215,28 +213,33 @@ class AgentSpec(BaseModel):
 
 
 class CreateAgentAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     type: Literal["create_agent"] = "create_agent"
     spec: AgentSpec
 
 
 class MessageAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     type: Literal["message"] = "message"
     agent_id: str
     content: str
 
 
 class TaskCreateAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     type: Literal["task.create"] = "task.create"
     context_id: str
     payload: TaskCreate
 
 
 class HandoffAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     type: Literal["handoff"] = "handoff"
     payload: HandoffCreate
 
 
 class SubprocessRunAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     type: Literal["subprocess.run"] = "subprocess.run"
     command: List[str]
     env: Dict[str, str] = Field(default_factory=dict)
@@ -253,6 +256,16 @@ PlanAction = Union[
 
 
 class PlanV1(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     version: Literal["1"] = "1"
     agents: List[AgentSpec] = Field(default_factory=list)
     actions: List[PlanAction] = Field(default_factory=list)
+
+
+# Extend orchestration create to optionally include a deterministic plan (for tests and local execution)
+class OrchestrationCreate(BaseModel):
+    context_id: str
+    prompt: str
+    created_by: str = "user"
+    policy: Optional[OrchestrationPolicy] = None
+    plan: Optional[PlanV1] = None
