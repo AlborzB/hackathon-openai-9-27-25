@@ -82,6 +82,7 @@ def add_memory(context_id: str, payload: MemoryCreate, store: MemoryStore = Depe
                 type="memory_added",
                 actor="broker",
                 message=item.text,
+                tags=item.tags,
                 data={"author": item.author, "tags": item.tags},
             )
         )
@@ -113,6 +114,7 @@ def add_task(context_id: str, payload: TaskCreate, store: MemoryStore = Depends(
                 type="task_created",
                 actor="broker",
                 agent_id=task.assignee,
+                tags=task.tags or [],
                 data={"task_id": task.id, "title": task.title},
             )
         )
@@ -132,6 +134,7 @@ def update_task(context_id: str, task_id: str, payload: TaskUpdate, store: Memor
                 type="task_updated",
                 actor="broker",
                 agent_id=task.assignee,
+                tags=task.tags or [],
                 data={"task_id": task.id},
             )
         )
