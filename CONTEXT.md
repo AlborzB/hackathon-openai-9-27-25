@@ -7,7 +7,7 @@ Summary
 Code Map
 - API service
   - memory_broker/main.py: FastAPI app factory, CORS setup, store injection
-  - memory_broker/api.py: Route handlers for agents, contexts, repos, memories, tasks, handoffs
+  - memory_broker/api.py: Route handlers for agents, contexts, repos, memories, tasks, handoffs, orchestrations, and events feed
   - memory_broker/models.py: Pydantic models (Agent, ContextPool, MemoryItem, Task, Handoff, request DTOs)
   - memory_broker/store/base.py: MemoryStore interface
   - memory_broker/store/in_memory.py: In-memory implementation (default)
@@ -21,7 +21,7 @@ Code Map
   - requirements.txt: Runtime deps aligned for MCP + FastAPI
 
 Runtime Requirements
-- Python: Prefer system Python 3.11 with sqlite3 support (Codex uses sqlite locally). A 3.12+ interpreter works too if compiled with sqlite3, or via pysqlite3-binary shim.
+- Python: Python 3.10+ (tested on 3.11). No external DB required; in-memory store for hackathon speed.
 - Deps (pinned): fastapi==0.115.0, uvicorn==0.32.0, pydantic==2.11.9, httpx==0.27.2, mcp==1.15.0, python-dotenv==1.0.1.
 
 Runbook (HTTP API)
@@ -49,8 +49,10 @@ HTTP API (high level)
 - Contexts: POST /contexts, GET /contexts
 - Repos: POST /contexts/{context_id}/repos
 - Memories: POST /contexts/{context_id}/memories, GET /contexts/{context_id}/memories?q=...
-- Tasks: POST /contexts/{context_id}/tasks, PATCH /contexts/{context_id}/tasks/{task_id}
-- Handoffs: POST /handoffs
+- Tasks: POST /contexts/{context_id}/tasks, GET /contexts/{context_id}/tasks, PATCH /contexts/{context_id}/tasks/{task_id}
+- Handoffs: POST /handoffs, GET /contexts/{context_id}/handoffs
+- Orchestrations: POST /orchestrations, GET /orchestrations/{run_id}
+- Events: GET /orchestrations/{run_id}/events, GET /contexts/{context_id}/events
 
 Git State
 - Branch: feature/memory-broker
@@ -62,9 +64,8 @@ Git State
   - Resolve README merge conflict preserving local collaboration flow sections
 
 Operational Notes
-- Verified the broker boots and serves /openapi.json using a custom Python at /home/rahul/3124/bin/python.
+- Verified the broker boots locally and serves /openapi.json.
 - Resolved dependency resolver conflicts by pinning versions (see requirements.txt).
-- If sqlite3 is missing in your interpreter, either rebuild Python with libsqlite3-dev present or use a shim (pysqlite3-binary + sitecustomize.py).
 
 Next Steps (Optional)
 - Add JSON file store implementation for persistence behind MEMORY_BROKER_STORAGE=json.
