@@ -138,3 +138,77 @@ sequenceDiagram
 - Fine‑grained permissions and API tokens.
 - Richer action set (repo ops, PRs, test runners), and agent resource quotas.
 
+
+## Implementation Checklist (Gaps + Tasks)
+
+Use this checklist to drive implementation. Update this document as changes land so the architecture stays current.
+
+- [ ] Models & Store
+  - [ ] Add `OrchestrationRun` model (id, context_id, prompt, status, policy, created_at).
+  - [ ] Add `Event` model (id, run_id, context_id, agent_id?, type, message, data, ts, category, actor).
+  - [ ] In-memory store: collections for runs and events; helpers to append/query events.
+  - [ ] JSON persistence (optional, later) for runs/events controlled by `MEMORY_BROKER_STORAGE=json`.
+
+- [ ] API Endpoints (MVP)
+  - [ ] POST `/orchestrations` to create a run; returns run details.
+  - [ ] GET `/orchestrations/{id}` to fetch run status/details.
+  - [ ] GET `/orchestrations/{id}/events` to list run events (supports paging).
+  - [ ] GET `/contexts/{id}/events` to list context-wide events (supports filters/paging).
+  - [ ] GET `/contexts/{id}/tasks` to list tasks for Context Detail view.
+  - [ ] GET `/contexts/{id}/handoffs` to list handoffs for Handoff Center.
+  - [ ] POST `/orchestrations/{id}/cancel` (optional safety).
+  - [ ] Update `openapi.yaml` and README with new endpoints.
+
+- [ ] Event Emission (Wire Up Existing Actions)
+  - [ ] On user prompt (POST /orchestrations): emit `user_message` and `plan` (placeholder) events.
+  - [ ] On `POST /contexts/{id}/repos`: emit `repo_linked` event.
+  - [ ] On `POST /contexts/{id}/tasks`: emit `task_created` event.
+  - [ ] On `PATCH /contexts/{id}/tasks/{task_id}`: emit `task_updated` event.
+  - [ ] On `POST /handoffs`: emit `handoff_recorded` event.
+  - [ ] On `POST /contexts/{id}/memories`: emit `memory_appended` event.
+  - [ ] Standardize `data` payloads (include relevant ids: task_id, memory_id, handoff_id, repo, etc.).
+
+- [ ] Event Schema & Filtering
+  - [ ] Add `category` computed on the backend for filtering (decision | incident | progress | task | handoff).
+  - [ ] Add `actor` to identify event origin ("user" | agent_id | "system").
+  - [ ] Support query params for events endpoints: `?agent_id=&type=&category=&tag=&repo=&limit=&after=`.
+  - [ ] Ensure chronological sort and pagination (cursor or time-based).
+
+- [ ] LLM Deterministic Plan Schema (v1)
+  - [ ] Implement Pydantic models for schema v1 (top-level + actions whitelist).
+  - [ ] Parser/validator that rejects unknown actions and missing fields.
+  - [ ] Map actions to store/api operations; emit events before/after each action.
+  - [ ] Versioning strategy (`version: "1"`) for forward compatibility.
+
+- [ ] Orchestrator Runner
+  - [ ] `orchestrator.py` service to execute runs asynchronously.
+  - [ ] Spawn Codex CLI subprocess for planning (separate working dir per run).
+  - [ ] Spawn per-agent Codex sessions for `run_codex_session` with isolated dirs (`runs/<run>/<agent>/`).
+  - [ ] Log subprocess stdout/err to run-scoped files; emit `agent_message` or `command_executed` events.
+  - [ ] Respect escalation policy: retries, timeouts, `impasse_after`, `max_attempts_per_step`.
+  - [ ] Never read or log credentials; rely on Codex CLI configuration. If needed, pass path via env var without printing.
+
+- [ ] Deduplication & Idempotency
+  - [ ] Avoid duplicate repo entries on repeated link calls.
+  - [ ] Agent upsert remains idempotent by name; document behavior.
+  - [ ] Context creation idempotent by normalized name; document behavior.
+
+- [ ] Memories & Search
+  - [ ] Extend memories listing to support `?tag=` filter in addition to `q`.
+  - [ ] Confirm MemoryItem.refs cover required types (file, url, issue, pr) for UI refs panel.
+
+- [ ] Frontend Contract (Docs)
+  - [ ] Document event types → UI categories mapping in README/docs.
+  - [ ] Provide example payloads for key events and list endpoints.
+  - [ ] Provide recommended polling intervals and pagination usage.
+  - [ ] Include run status surface for Top Bar (Running/Blocked/Done).
+
+- [ ] Observability & Delivery
+  - [ ] Consider SSE/WebSockets for events (follow-up milestone).
+  - [ ] Add basic rate limiting (optional).
+  - [ ] Add auth token header support (optional, dev-only for now).
+
+- [ ] Documentation & Maintenance
+  - [ ] Keep this doc updated as endpoints/models change.
+  - [ ] Update `CONTEXT.md` and `README.md` summaries once MVP endpoints land.
+  - [ ] Update `openapi.yaml` snapshot.
