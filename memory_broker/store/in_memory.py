@@ -250,6 +250,8 @@ class InMemoryStore(MemoryStore):
         limit: Optional[int] = None,
         after: Optional[str] = None,
     ) -> List[Event]:
+        # Ensure context exists to return 404 upstream when unknown
+        self._require_context(context_id)
         events = list(self._context_events.get(context_id, []))
         # TODO: implement cursor via `after`
         if agent_id is not None:
