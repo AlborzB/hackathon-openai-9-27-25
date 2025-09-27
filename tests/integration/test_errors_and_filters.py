@@ -127,6 +127,7 @@ def test_openapi_includes_new_paths(client: TestClient):
         "/orchestrations",
         "/orchestrations/{run_id}",
         "/orchestrations/{run_id}/events",
+        "/orchestrations/{run_id}/cancel",
         "/contexts/{context_id}/events",
         "/contexts/{context_id}/tasks",
         "/contexts/{context_id}/handoffs",
