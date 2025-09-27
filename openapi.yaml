@@ -1,0 +1,145 @@
+openapi: 3.0.3
+info:
+  title: Agent Memory Broker API
+  version: 0.1.0
+servers:
+  - url: http://localhost:7070
+paths:
+  /agents:
+    get:
+      summary: List agents
+      responses:
+        '200': { description: OK }
+    post:
+      summary: Register agent
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AgentCreate' }}}}
+      responses: { '200': { description: OK } }
+  /contexts:
+    get:
+      summary: List context pools
+      responses: { '200': { description: OK } }
+    post:
+      summary: Create context pool
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ContextCreate' }}}}
+      responses: { '200': { description: OK } }
+  /contexts/{context_id}/memories:
+    parameters:
+      - name: context_id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      summary: List or query memories
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+      responses: { '200': { description: OK } }
+    post:
+      summary: Append memory item
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/MemoryCreate' }}}}
+      responses: { '200': { description: OK } }
+  /contexts/{context_id}/repos:
+    parameters:
+      - name: context_id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      summary: Link repository reference to context
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/RepoRef' }}}}
+      responses: { '200': { description: OK } }
+  /contexts/{context_id}/tasks:
+    parameters:
+      - name: context_id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      summary: Create task
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TaskCreate' }}}}
+      responses: { '200': { description: OK } }
+  /contexts/{context_id}/tasks/{task_id}:
+    parameters:
+      - name: context_id
+        in: path
+        required: true
+        schema: { type: string }
+      - name: task_id
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      summary: Update task
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TaskUpdate' }}}}
+      responses: { '200': { description: OK } }
+  /handoffs:
+    post:
+      summary: Record handoff
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/HandoffCreate' }}}}
+      responses: { '200': { description: OK } }
+components:
+  schemas:
+    AgentCreate:
+      type: object
+      required: [ name ]
+      properties:
+        name: { type: string }
+        kind: { type: string, enum: [human, agent], default: agent }
+        metadata: { type: object, additionalProperties: true }
+    ContextCreate:
+      type: object
+      required: [ name ]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        tags: { type: array, items: { type: string } }
+    MemoryCreate:
+      type: object
+      required: [ author, text ]
+      properties:
+        author: { type: string }
+        text: { type: string }
+        tags: { type: array, items: { type: string } }
+        refs: { type: array, items: { $ref: '#/components/schemas/Ref' } }
+    Ref:
+      type: object
+      properties:
+        type: { type: string, enum: [file, url, repo, issue, pr] }
+        value: { type: string }
+        meta: { type: object, additionalProperties: true }
+    RepoRef:
+      type: object
+      required: [ provider, owner, name ]
+      properties:
+        provider: { type: string, enum: [github] }
+        owner: { type: string }
+        name: { type: string }
+        branch: { type: string }
+    TaskCreate:
+      type: object
+      required: [ title ]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        assignee: { type: string }
+        status: { type: string, enum: [todo, in_progress, blocked, done], default: todo }
+        tags: { type: array, items: { type: string } }
+    TaskUpdate:
+      type: object
+      properties:
+        title: { type: string }
+        description: { type: string }
+        assignee: { type: string }
+        status: { type: string, enum: [todo, in_progress, blocked, done] }
+        tags: { type: array, items: { type: string } }
+    HandoffCreate:
+      type: object
+      required: [ from, to, context, task, summary ]
+      properties:
+        from: { type: string }
+        to: { type: string }
+        context: { type: string }
+        task: { type: string }
+        summary: { type: string }
+        next_steps: { type: string }
