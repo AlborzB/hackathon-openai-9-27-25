@@ -25,6 +25,8 @@ Key Concepts
 - Context Pool: A named workspace shared by a team; associates repos, tasks, and memories
 - Memory Item: Structured note/event (who/when/what/refs) stored with tags for recall
 - Handoff: Explicit transfer of task ownership between agents with a summary + pointers
+ - Orchestration Run: A prompt-scoped coordination run that plans and delegates across agents
+ - Event: Append-only activity log for a run or context (for UI feeds)
 
 HTTP API Summary
 - POST /agents: register an agent
@@ -35,8 +37,14 @@ HTTP API Summary
 - GET /contexts/{id}/memories: list/query memories
 - POST /contexts/{id}/repos: link a repo reference
 - POST /contexts/{id}/tasks: create task
+- GET /contexts/{id}/tasks: list tasks
 - PATCH /contexts/{id}/tasks/{task_id}: update task
 - POST /handoffs: record a handoff (links agents, task, context)
+- GET /contexts/{id}/handoffs: list handoffs for a context
+- POST /orchestrations: create an orchestration run for a prompt
+- GET /orchestrations/{run_id}: fetch orchestration run details
+- GET /orchestrations/{run_id}/events: list events for a run
+- GET /contexts/{id}/events: list events for a context (aggregation)
 
 Storage
 - In-memory (default) for hackathon speed
