@@ -9,10 +9,14 @@ from ..models import (
     AgentCreate,
     ContextCreate,
     ContextPool,
+    Event,
+    EventCreate,
     Handoff,
     HandoffCreate,
     MemoryCreate,
     MemoryItem,
+    OrchestrationCreate,
+    OrchestrationRun,
     RepoRef,
     Task,
     TaskCreate,
@@ -31,6 +35,10 @@ class InMemoryStore(MemoryStore):
         self._memories: Dict[str, List[MemoryItem]] = {}
         self._tasks: Dict[str, Dict[str, Task]] = {}
         self._handoffs: Dict[str, Handoff] = {}
+        # Orchestration runs and events
+        self._runs: Dict[str, OrchestrationRun] = {}
+        self._events: Dict[str, List[Event]] = {}
+        self._context_events: Dict[str, List[Event]] = {}
 
     # Agents
     def upsert_agent(self, payload: AgentCreate) -> Agent:
@@ -62,7 +70,16 @@ class InMemoryStore(MemoryStore):
 
     def link_repo(self, context_id: str, repo: RepoRef) -> ContextPool:
         ctx = self._require_context(context_id)
-        ctx.repos.append(repo)
+        # Deduplicate same repo (provider/owner/name/branch)
+        exists = any(
+            r.provider == repo.provider
+            and r.owner == repo.owner
+            and r.name == repo.name
+            and (r.branch or "") == (repo.branch or "")
+            for r in ctx.repos
+        )
+        if not exists:
+            ctx.repos.append(repo)
         return ctx
 
     # Memories
@@ -121,6 +138,10 @@ class InMemoryStore(MemoryStore):
         # updated_at will be recalculated by model default on re-creation; here we keep it simple
         return task
 
+    def list_tasks(self, context_id: str) -> List[Task]:
+        self._require_context(context_id)
+        return list(self._tasks.get(context_id, {}).values())
+
     # Handoffs
     def record_handoff(self, payload: HandoffCreate) -> Handoff:
         self._require_context(payload.context)
@@ -137,10 +158,115 @@ class InMemoryStore(MemoryStore):
         self._handoffs[hid] = ho
         return ho
 
+    def list_handoffs(self, context_id: str) -> List[Handoff]:
+        self._require_context(context_id)
+        return [h for h in self._handoffs.values() if h.context_id == context_id]
+
+    # Orchestrations
+    def create_orchestration(self, payload: OrchestrationCreate) -> OrchestrationRun:
+        self._require_context(payload.context_id)
+        rid = _id("run")
+        run = OrchestrationRun(
+            id=rid,
+            context_id=payload.context_id,
+            prompt=payload.prompt,
+            created_by=payload.created_by,
+            policy=payload.policy,
+        )
+        self._runs[rid] = run
+        # Pre-create containers
+        self._events.setdefault(rid, [])
+        self._context_events.setdefault(payload.context_id, [])
+        return run
+
+    def get_orchestration(self, run_id: str) -> OrchestrationRun:
+        run = self._runs.get(run_id)
+        if not run:
+            raise KeyError(f"run not found: {run_id}")
+        return run
+
+    # Events
+    def append_event(self, payload: EventCreate) -> Event:
+        # ensure context exists and optionally run exists
+        self._require_context(payload.context_id)
+        if payload.run_id:
+            _ = self._runs.get(payload.run_id)
+            if _ is None:
+                raise KeyError(f"run not found: {payload.run_id}")
+        eid = _id("evt")
+        evt = Event(
+            id=eid,
+            context_id=payload.context_id,
+            run_id=payload.run_id,
+            category=payload.category,
+            type=payload.type,
+            actor=payload.actor,
+            message=payload.message,
+            tags=payload.tags,
+            agent_id=payload.agent_id,
+            task_id=payload.task_id,
+            handoff_id=payload.handoff_id,
+            repo=payload.repo,
+            data=payload.data,
+        )
+        if payload.run_id:
+            self._events.setdefault(payload.run_id, []).append(evt)
+        self._context_events.setdefault(payload.context_id, []).append(evt)
+        return evt
+
+    def list_run_events(
+        self,
+        run_id: str,
+        *,
+        agent_id: Optional[str] = None,
+        type: Optional[str] = None,
+        category: Optional[str] = None,
+        tag: Optional[str] = None,
+        limit: Optional[int] = None,
+        after: Optional[str] = None,
+    ) -> List[Event]:
+        events = list(self._events.get(run_id, []))
+        # TODO: implement cursor via `after`
+        if agent_id is not None:
+            events = [e for e in events if e.agent_id == agent_id]
+        if type is not None:
+            events = [e for e in events if e.type == type]
+        if category is not None:
+            events = [e for e in events if e.category == category]
+        if tag is not None:
+            events = [e for e in events if tag in (e.tags or [])]
+        if limit is not None and limit >= 0:
+            events = events[-limit:]
+        return events
+
+    def list_context_events(
+        self,
+        context_id: str,
+        *,
+        agent_id: Optional[str] = None,
+        type: Optional[str] = None,
+        category: Optional[str] = None,
+        tag: Optional[str] = None,
+        limit: Optional[int] = None,
+        after: Optional[str] = None,
+    ) -> List[Event]:
+        events = list(self._context_events.get(context_id, []))
+        # TODO: implement cursor via `after`
+        if agent_id is not None:
+            events = [e for e in events if e.agent_id == agent_id]
+        if type is not None:
+            events = [e for e in events if e.type == type]
+        if category is not None:
+            events = [e for e in events if e.category == category]
+        if tag is not None:
+            events = [e for e in events if tag in (e.tags or [])]
+        if limit is not None and limit >= 0:
+            events = events[-limit:]
+        return events
+
     # Helpers
     def _require_context(self, context_id: str) -> ContextPool:
         ctx = self._contexts.get(context_id)
         if not ctx:
             raise KeyError(f"context not found: {context_id}")
         return ctx
-
