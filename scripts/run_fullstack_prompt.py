@@ -121,6 +121,8 @@ def run(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--inline-plan", action="store_true", help="Send a deterministic inline plan instead of using planner")
     parser.add_argument("--planner", choices=["mock", "codex"], default=None, help="Planner to use when not providing a plan")
     parser.add_argument("--timeout", type=int, default=90, help="Max seconds to wait for completion")
+    parser.add_argument("--verify", action="store_true", help="After completion, fetch artifacts and print a summary")
+    parser.add_argument("--snapshot", default=None, help="Path to write a JSON snapshot when --verify is used (default: run_<id>_snapshot.json)")
     args = parser.parse_args(argv)
 
     server_proc: Optional[subprocess.Popen] = None
@@ -156,11 +158,21 @@ def run(argv: Optional[List[str]] = None) -> int:
             after: Optional[str] = None
             start = time.time()
             printed: set[str] = set()
+            # Helper to collect artifacts for verification
+            def _collect_snapshot(run_obj: Dict[str, Any]) -> Dict[str, Any]:
+                ctx_id = run_obj.get("context_id")
+                events = client.get(f"/orchestrations/{run_id}/events").json()
+                tasks = client.get(f"/contexts/{ctx_id}/tasks").json() if ctx_id else []
+                handoffs = client.get(f"/contexts/{ctx_id}/handoffs").json() if ctx_id else []
+                agents = client.get("/agents").json()
+                return {"run": run_obj, "events": events, "tasks": tasks, "handoffs": handoffs, "agents": agents}
+
             while time.time() - start < args.timeout:
                 # Status
                 r = client.get(f"/orchestrations/{run_id}")
                 r.raise_for_status()
-                status = r.json()["status"]
+                run_obj = r.json()
+                status = run_obj["status"]
 
                 # Events
                 params = {"limit": 50}
@@ -179,6 +191,29 @@ def run(argv: Optional[List[str]] = None) -> int:
 
                 if status in ("completed", "failed", "canceled"):
                     print(f"Run finished with status: {status}")
+                    if args.verify:
+                        # Gather artifacts and print a concise summary; optionally write a snapshot
+                        snap = _collect_snapshot(run_obj)
+
+                        # Summary
+                        print("\n=== Verification Summary ===")
+                        print(json.dumps({k: snap["run"].get(k) for k in ("id", "context_id", "status", "prompt", "created_at")}, indent=2))
+                        print("\nEvents:", len(snap["events"]))
+                        if snap["events"]:
+                            first = snap["events"][0]
+                            last = snap["events"][-1]
+                            print("first:", f"{first.get('category')}.{first.get('type')}")
+                            print("last:", f"{last.get('category')}.{last.get('type')}")
+                        print("Tasks:", len(snap["tasks"]))
+                        print("Handoffs:", len(snap["handoffs"]))
+                        print("Agents:", len(snap["agents"]))
+
+                        # Write snapshot if requested
+                        snap_path = args.snapshot or f"run_{run_id}_snapshot.json"
+                        with open(snap_path, "w", encoding="utf-8") as f:
+                            json.dump(snap, f, indent=2)
+                        print("Snapshot written:", snap_path)
+
                     return 0 if status == "completed" else 1
 
                 time.sleep(1.0)
@@ -192,4 +227,3 @@ def run(argv: Optional[List[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(run(sys.argv[1:]))
-

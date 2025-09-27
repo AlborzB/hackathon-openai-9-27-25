@@ -62,6 +62,16 @@ def run(argv: Optional[List[str]] = None) -> int:
     base_url = f"http://{args.host}:{args.port}"
     snap_path = args.snapshot or f"run_{args.run_id}_snapshot.json"
 
+    # Quick readiness check for clearer errors when broker isn't running
+    try:
+        httpx.get(f"{base_url}/openapi.json", timeout=3.0)
+    except Exception as e:  # noqa: BLE001
+        print("Broker is not reachable at:", base_url)
+        print("Hint: start it in another shell and re-run this command:")
+        print(f"  /home/rahul/311/bin/python -m uvicorn memory_broker.main:app --host {args.host} --port {args.port}")
+        print("Note: state is in-memory; you must verify runs created while this process is alive.")
+        return 2
+
     with httpx.Client(base_url=base_url, timeout=10.0) as client:
         # Run details
         run = _get(client, f"/orchestrations/{args.run_id}")
@@ -127,4 +137,3 @@ def run(argv: Optional[List[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(run())
-
