@@ -1,34 +1,46 @@
 import React, { useState } from 'react'
-import { FeedEvent } from '../../lib/api/types'
 
-export function ChatInput({ onSend }: { onSend: (evt: FeedEvent) => void }) {
-  const [text, setText] = useState('')
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (!text.trim()) return
-        const evt: FeedEvent = {
-          id: `user_${Math.random().toString(16).slice(2, 10)}`,
-          ts: Date.now(),
-          kind: 'user',
-          text,
-        }
-        onSend(evt)
-        setText('')
-      }}
-      style={{ display: 'flex', gap: 8 }}
-    >
-      <input
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Type a prompt…"
-        style={{ flex: 1, padding: '8px 10px', border: '1px solid #ddd', borderRadius: 6 }}
-      />
-      <button type="submit" style={{ padding: '8px 12px' }}>
-        Send
-      </button>
-    </form>
-  )
+interface Props {
+  onSend: (text: string) => Promise<void> | void
 }
 
+export function ChatInput({ onSend }: Props) {
+  const [text, setText] = useState('')
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const value = text.trim()
+    if (!value || pending) return
+    setPending(true)
+    setError(null)
+    try {
+      await onSend(value)
+      setText('')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to send prompt'
+      setError(message)
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <div>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 8 }}>
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Describe what you need…"
+          disabled={pending}
+          style={{ flex: 1, padding: '8px 10px', border: '1px solid #ddd', borderRadius: 6 }}
+        />
+        <button type="submit" disabled={pending || !text.trim()} style={{ padding: '8px 12px' }}>
+          {pending ? 'Sending…' : 'Send'}
+        </button>
+      </form>
+      {error && <div style={{ marginTop: 6, color: '#d00', fontSize: 12 }}>{error}</div>}
+    </div>
+  )
+}

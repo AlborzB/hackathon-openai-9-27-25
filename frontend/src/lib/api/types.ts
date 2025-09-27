@@ -69,6 +69,49 @@ export interface Handoff {
   created_at?: string
 }
 
+export type OrchestrationStatus = 'pending' | 'running' | 'completed' | 'failed'
+
+export interface OrchestrationRun {
+  id: string
+  context_id: string
+  prompt: string
+  created_by?: string
+  status: OrchestrationStatus
+  policy?: Record<string, unknown>
+  created_at?: string
+}
+
+export type EventCategory =
+  | 'user'
+  | 'system'
+  | 'broker'
+  | 'agent'
+  | 'repo'
+  | 'task'
+  | 'handoff'
+  | 'memory'
+  | 'orchestration'
+  | 'plan'
+
+export type EventActor = 'user' | 'broker' | 'agent'
+
+export interface Event {
+  id: string
+  context_id: string
+  run_id?: string | null
+  category: EventCategory
+  type: string
+  actor: EventActor
+  message?: string | null
+  tags: string[]
+  agent_id?: string | null
+  task_id?: string | null
+  handoff_id?: string | null
+  repo?: RepoRef | null
+  data: Record<string, unknown>
+  created_at: string
+}
+
 // Notification stream from broker (mocked for now)
 export type NotificationKind =
   | 'agent_created'
@@ -100,4 +143,3 @@ export interface FeedEvent {
   refs?: Ref[]
   meta?: Record<string, unknown>
 }
-
