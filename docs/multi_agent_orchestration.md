@@ -215,3 +215,4 @@ Use this checklist to drive implementation. Update this document as changes land
 
 ## Testing Reference
 - See `docs/integration_testing.md` for the integration test plan and current coverage expectations. Keep both documents updated together.
+- See `docs/frontend_contracts.md` for event shapes, UI mappings, and polling guidance.

@@ -60,6 +60,7 @@
 
 ## Cross-Reference
 - Architecture and checklist live at `docs/multi_agent_orchestration.md`. Update both docs together as features evolve.
+- Frontend contracts live at `docs/frontend_contracts.md`.
 
 ---
 
@@ -102,8 +103,8 @@
 
 - [ ] Frontend Contracts
   - [ ] Add example snapshot payloads in tests (for docs) for key events and endpoints.
-  - [ ] Document event type → UI category mapping and verify via assertions.
-  - [ ] Recommend polling intervals and paging usage in docs with references to tested behavior.
+  - [x] Document event type → UI category mapping and verify via assertions. (See `docs/frontend_contracts.md`)
+  - [x] Recommend polling intervals and paging usage in docs with references to tested behavior. (See `docs/frontend_contracts.md`)
 
 - [ ] Docs Sync
   - [x] Keep this file and `docs/multi_agent_orchestration.md` aligned as features land (SSE, pagination, orchestrator). (Updated for parser/orchestrator stub)
