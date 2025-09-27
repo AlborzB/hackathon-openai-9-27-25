@@ -230,6 +230,16 @@ class InMemoryStore(MemoryStore):
             raise KeyError(f"run not found: {run_id}")
         events = list(self._events.get(run_id, []))
         # TODO: implement cursor via `after`
+        # Stable chronological order
+        events.sort(key=lambda e: (e.created_at, e.id))
+        # Cursor by event id: return items strictly after the provided id
+        if after:
+            try:
+                idx = next(i for i, e in enumerate(events) if e.id == after)
+                events = events[idx + 1 :]
+            except StopIteration:
+                # Unknown cursor -> return full set (lenient)
+                pass
         if agent_id is not None:
             events = [e for e in events if e.agent_id == agent_id]
         if type is not None:
@@ -257,6 +267,16 @@ class InMemoryStore(MemoryStore):
         self._require_context(context_id)
         events = list(self._context_events.get(context_id, []))
         # TODO: implement cursor via `after`
+        # Stable chronological order
+        events.sort(key=lambda e: (e.created_at, e.id))
+        # Cursor by event id: return items strictly after the provided id
+        if after:
+            try:
+                idx = next(i for i, e in enumerate(events) if e.id == after)
+                events = events[idx + 1 :]
+            except StopIteration:
+                # Unknown cursor -> return full set (lenient)
+                pass
         if agent_id is not None:
             events = [e for e in events if e.agent_id == agent_id]
         if type is not None:
