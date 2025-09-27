@@ -212,3 +212,6 @@ Use this checklist to drive implementation. Update this document as changes land
   - [ ] Keep this doc updated as endpoints/models change.
   - [ ] Update `CONTEXT.md` and `README.md` summaries once MVP endpoints land.
   - [ ] Update `openapi.yaml` snapshot.
+
+## Testing Reference
+- See `docs/integration_testing.md` for the integration test plan and current coverage expectations. Keep both documents updated together.
