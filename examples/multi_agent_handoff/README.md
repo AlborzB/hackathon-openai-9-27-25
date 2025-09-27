@@ -3,8 +3,11 @@ Multi‑Agent Handoff Example
 This example drives the Memory Broker via HTTP to simulate a small handoff between two developers.
 
 Run
-- Start the API: `uvicorn memory_broker.main:app --reload --port 7070`
-- Execute the script: `python examples/multi_agent_handoff/run.py`
+- Option A (manual):
+  - Start the API: `uvicorn memory_broker.main:app --reload --port 7070`
+  - Execute the script: `python examples/multi_agent_handoff/run.py`
+- Option B (convenience runner):
+  - `python scripts/run_multi_agent_example.py --reload`
 
 What it does
 - Upserts two agents (Riley, Kai)
@@ -16,4 +19,3 @@ What it does
 
 Configuration
 - `BASE_URL` env var (default `http://localhost:7070`)
-

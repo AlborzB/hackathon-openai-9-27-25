@@ -10,3 +10,12 @@ data/
 dist/
 build/
 *.egg-info/
+logs
+\n+# Config directory (local state and secrets)
+config/codex.sqlite3
+config/*.sqlite*
+config/secret_key
+config/cache/
+config/logs/
+config/custom-covers/
+.broker_pid
