@@ -30,3 +30,18 @@ def test_link_repo_dedup_and_events(client: TestClient):
     events = [e for e in r.json() if e["category"] == "repo" and e["type"] == "repo_linked"]
     assert len(events) >= 1
 
+
+def test_link_repo_different_branches_are_distinct(client: TestClient):
+    r = client.post("/contexts", json={"name": "ctx-repos-branches"})
+    assert r.status_code == 200
+    ctx_id = r.json()["id"]
+
+    repo_main = {"provider": "github", "owner": "org", "name": "repo", "branch": "main"}
+    repo_dev = {"provider": "github", "owner": "org", "name": "repo", "branch": "dev"}
+
+    r1 = client.post(f"/contexts/{ctx_id}/repos", json=repo_main)
+    assert r1.status_code == 200
+    r2 = client.post(f"/contexts/{ctx_id}/repos", json=repo_dev)
+    assert r2.status_code == 200
+    ctx_after = r2.json()
+    assert len(ctx_after["repos"]) == 2

@@ -40,3 +40,39 @@ def test_orchestration_creation_emits_events(client: TestClient):
     assert ("user", "user_message") in ckinds
     assert ("plan", "plan") in ckinds
 
+
+def test_orchestration_events_filters_and_limit(client: TestClient):
+    # setup a run
+    r = client.post("/contexts", json={"name": "ctx-orch2"})
+    assert r.status_code == 200
+    ctx_id = r.json()["id"]
+    r = client.post("/orchestrations", json={"context_id": ctx_id, "prompt": "X"})
+    assert r.status_code == 200
+    run_id = r.json()["id"]
+
+    # filter by category=user
+    r = client.get(f"/orchestrations/{run_id}/events", params={"category": "user"})
+    assert r.status_code == 200
+    events = r.json()
+    assert all(e["category"] == "user" for e in events)
+
+    # filter by type=plan
+    r = client.get(f"/orchestrations/{run_id}/events", params={"type": "plan"})
+    assert r.status_code == 200
+    events = r.json()
+    assert all(e["type"] == "plan" for e in events)
+
+    # limit=1 returns last event
+    r_all = client.get(f"/orchestrations/{run_id}/events")
+    assert r_all.status_code == 200
+    all_events = r_all.json()
+    r_last = client.get(f"/orchestrations/{run_id}/events", params={"limit": 1})
+    assert r_last.status_code == 200
+    last_events = r_last.json()
+    assert len(last_events) == 1
+    assert last_events[0]["id"] == all_events[-1]["id"]
+
+
+def test_orchestration_events_unknown_run_404(client: TestClient):
+    r = client.get("/orchestrations/run_nope/events")
+    assert r.status_code == 404

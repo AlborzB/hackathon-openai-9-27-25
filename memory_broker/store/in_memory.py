@@ -225,6 +225,9 @@ class InMemoryStore(MemoryStore):
         limit: Optional[int] = None,
         after: Optional[str] = None,
     ) -> List[Event]:
+        # Ensure run exists to return 404 upstream when unknown
+        if run_id not in self._runs:
+            raise KeyError(f"run not found: {run_id}")
         events = list(self._events.get(run_id, []))
         # TODO: implement cursor via `after`
         if agent_id is not None:
