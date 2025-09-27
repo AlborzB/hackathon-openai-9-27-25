@@ -61,3 +61,50 @@
 ## Cross-Reference
 - Architecture and checklist live at `docs/multi_agent_orchestration.md`. Update both docs together as features evolve.
 
+---
+
+## Active TODOs (Integration Testing)
+
+- [ ] Test Infra
+  - [ ] Add `requirements-dev.txt` with `pytest` pin and docs on installing dev deps.
+  - [ ] Add CI workflow to run `pytest -q` on PRs and main branch.
+  - [ ] Optional: Add `make test` target for local convenience.
+
+- [ ] API Edge/Negative Cases
+  - [ ] 404 on unknown `context_id` across endpoints (memories, tasks, events, repos, handoffs).
+  - [ ] 404 on unknown `run_id` for `/orchestrations/{run_id}` and `/orchestrations/{run_id}/events`.
+  - [ ] 422 on invalid payloads (e.g., missing fields in `HandoffCreate`, invalid task `status`).
+  - [ ] Repo link payload validation (invalid provider/owner/name/branch should 422).
+  - [ ] Task update for non-existent task returns 404.
+
+- [ ] Events Filtering & Ordering
+  - [ ] Verify filter by `agent_id` works.
+  - [ ] Verify filter by `type` works.
+  - [ ] Verify filter by `category` works.
+  - [ ] Verify filter by `tag` works.
+  - [ ] Verify `limit` returns the last N events.
+  - [ ] Add cursor support via `after` and test chronological pagination (pending implementation).
+  - [ ] Assert stable chronological ordering guarantees (documented behavior).
+
+- [ ] Orchestrator & Plan Tests
+  - [ ] Plan schema validation: accept valid `PlanV1`, reject unknown actions/missing fields.
+  - [ ] Orchestrator stub emits before/after events for each action.
+  - [ ] Subprocess integration: ensure no credential leakage; rely on Codex CLI defaults or env path only.
+  - [ ] Run lifecycle events: `running` → `completed` or `failed` status transitions.
+
+- [ ] Persistence Backend (JSON) — when implemented
+  - [ ] Implement JSON store backend and toggle via `MEMORY_BROKER_STORAGE=json`.
+  - [ ] Verify runs/events/tasks/handoffs survive restart (basic durability test).
+
+- [ ] Performance & Stability
+  - [ ] Events list performance with higher volumes; enforce bounded responses.
+  - [ ] Concurrency smoke: interleave writes (memories/tasks) from multiple contexts.
+
+- [ ] Frontend Contracts
+  - [ ] Add example snapshot payloads in tests (for docs) for key events and endpoints.
+  - [ ] Document event type → UI category mapping and verify via assertions.
+  - [ ] Recommend polling intervals and paging usage in docs with references to tested behavior.
+
+- [ ] Docs Sync
+  - [ ] Keep this file and `docs/multi_agent_orchestration.md` aligned as features land (SSE, pagination, orchestrator).
+  - [ ] Update `openapi.yaml` when endpoints change and verify tests against updated routes.
