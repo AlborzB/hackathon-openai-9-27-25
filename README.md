@@ -10,6 +10,16 @@ Quick Start
 3) Run server: uvicorn memory_broker.main:app --reload --port 7070
 4) Open API docs: http://localhost:7070/docs
 
+MCP Adapter (Codex CLI Plugin)
+- A minimal MCP server is provided at `mcp_broker/server.py` that exposes broker operations as MCP tools over stdio.
+
+Run MCP server
+- python -m mcp_broker.server --broker-url http://localhost:7070
+
+Configure Codex CLI
+- Point Codex CLI (or any MCP-compatible client) to the stdio command above.
+- Tools available: register_agent, create_context, add_memory, list_memories, add_task, update_task, link_repo, record_handoff.
+
 Key Concepts
 - Agent: A human or automated agent participating in collaboration
 - Context Pool: A named workspace shared by a team; associates repos, tasks, and memories
@@ -54,6 +64,7 @@ OpenAPI
 
 License
 - Hackathon prototype. Use at your own risk.
+
 
 
 ## Example Collaboration Flow
