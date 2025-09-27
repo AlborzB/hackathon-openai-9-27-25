@@ -84,7 +84,7 @@
   - [x] Verify filter by `tag` works. (Added tags to memory/task events.)
   - [x] Verify `limit` returns the last N events.
   - [ ] Add cursor support via `after` and test chronological pagination (pending implementation).
-  - [ ] Assert stable chronological ordering guarantees (documented behavior).
+  - [x] Assert stable chronological ordering guarantees (documented behavior).
 
 - [ ] Orchestrator & Plan Tests
   - [ ] Plan schema validation: accept valid `PlanV1`, reject unknown actions/missing fields.
