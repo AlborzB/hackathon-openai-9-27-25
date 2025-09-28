@@ -10,8 +10,14 @@ data/
 dist/
 build/
 *.egg-info/
-logs
-\n+# Config directory (local state and secrets)
+logs/
+
+# Planner outputs and run artifacts (local, not for source control)
+plans/
+runs/
+run_*_snapshot.json
+
+# Config directory (local state and secrets)
 config/codex.sqlite3
 config/*.sqlite*
 config/secret_key
