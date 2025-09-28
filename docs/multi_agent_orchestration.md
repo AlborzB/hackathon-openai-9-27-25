@@ -71,7 +71,7 @@
 2) Broker persists the run and emits `user_message` and `plan` (planning_started) events.
 3) Orchestrator obtains a plan via the configured planner:
    - `mock` returns a deterministic local plan; `codex` shells out to the configured CLI with a strict prompt and expects JSON only.
-4) Orchestrator validates the JSON plan against schema v1 and emits `plan_ready`.
+4) Orchestrator validates the JSON plan against schema v1, persists it to `runs/<run_id>/plan.json`, and emits `plan_ready`.
 5) Orchestrator executes actions in order:
    - Create agents; emit messages; create tasks; record handoffs; run external commands via `subprocess.run` and emit `subprocess_started`/`subprocess_completed` (with logs/return codes). Per‑agent sessions remain a follow‑up.
 6) For each action, append `action_start`/`action_end` plus domain events; on errors, retry per policy; escalate if thresholds reached (policy knobs are present but not yet enforced).
@@ -92,7 +92,7 @@ sequenceDiagram
 
     Orch->>LLM: If BROKER_PLANNER=codex, invoke planner CLI
     LLM-->>Orch: Deterministic JSON plan (PlanV1)
-    Orch->>Store: Event(plan_ready) with actions summary
+    Orch->>Store: Event(plan_ready) with actions summary and plan file path
 
     loop For each Action
         Orch->>Store: Event(action_start)
@@ -120,6 +120,15 @@ sequenceDiagram
     Orch->>Store: Event(run_completed)
     Broker-->>UI: GET /orchestrations/{id}/events (audit trail)
 ```
+
+## Plan Observability
+- Storage: the validated plan is written to `runs/<run_id>/plan.json` for inspection and benchmarking.
+- Event: the `plan_ready` event includes a compact summary and a pointer to the file path:
+  - `data.action_types: string[]`
+  - `data.action_count: number`
+  - `data.agent_count: number`
+  - `data.plan_log?: string` (filesystem path to `plan.json`)
+- Frontend: the Run Detail view can render a Plan Summary (counts/types/agents) directly from `plan_ready`, and optionally offer a "View Full Plan" affordance (see checklist).
 
 ## Security & Isolation
 - Credentials: rely on Codex CLI’s existing local auth configuration (do not read or log secrets). If a path must be specified, pass it via environment variable without printing.
@@ -208,6 +217,8 @@ Use this checklist to drive implementation. Update this document as changes land
   - [x] Provide example payloads for key events and list endpoints.
   - [x] Provide recommended polling intervals and pagination usage.
   - [x] Include run status sequences (see "Run Lifecycle").
+  - [ ] Plan summary UI: render `plan_ready` summary (agents/actions/types) on Run Detail.
+  - [ ] Full plan viewer: add `GET /orchestrations/{id}/plan` endpoint and link from UI to preview/download JSON.
 
 - [ ] Observability & Delivery
   - [ ] Consider SSE/WebSockets for events (follow-up milestone).
