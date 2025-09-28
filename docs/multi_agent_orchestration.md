@@ -73,7 +73,7 @@
    - `mock` returns a deterministic local plan; `codex` shells out to the configured CLI with a strict prompt and expects JSON only.
 4) Orchestrator validates the JSON plan against schema v1 and emits `plan_ready`.
 5) Orchestrator executes actions in order:
-   - Create agents; emit messages; create tasks; record handoffs; emit `subprocess_started`/`subprocess_completed` for `subprocess.run` (currently stubbed; per‑agent sessions to follow).
+   - Create agents; emit messages; create tasks; record handoffs; run external commands via `subprocess.run` and emit `subprocess_started`/`subprocess_completed` (with logs/return codes). Per‑agent sessions remain a follow‑up.
 6) For each action, append `action_start`/`action_end` plus domain events; on errors, retry per policy; escalate if thresholds reached (policy knobs are present but not yet enforced).
 7) UI polls run events and displays audit trail; user is prompted only on escalation events (future policy).
 

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import time
 from typing import Optional
 
 from .models import (
@@ -71,7 +74,15 @@ def execute_run(store: MemoryStore, run: OrchestrationRun, plan: PlanV1) -> None
             )
 
         # Execute actions in order
+        sp_index = 0  # index for subprocess actions to create unique log filenames
         for action in plan.actions:
+            # Check for cancellation before each action
+            try:
+                if store.get_orchestration(run.id).status == "canceled":
+                    break
+            except Exception:
+                # If the run cannot be fetched, abort gracefully
+                break
             store.append_event(
                 EventCreate(
                     context_id=run.context_id,
@@ -142,7 +153,15 @@ def execute_run(store: MemoryStore, run: OrchestrationRun, plan: PlanV1) -> None
                     )
                 )
             elif action.type == "subprocess.run":
-                # Stub: simulate a successful subprocess execution without actually running external commands
+                # Execute external command with optional env and cwd; capture stdout/err to files under logs/runs/<run_id>
+                # Safety: do not log environment values; write streams to files and reference their paths in events.
+                run_logs_dir = os.path.join("logs", "runs", run.id)
+                os.makedirs(run_logs_dir, exist_ok=True)
+                base = f"subprocess_{sp_index:03d}"
+                sp_index += 1
+                stdout_path = os.path.join(run_logs_dir, f"{base}.stdout.txt")
+                stderr_path = os.path.join(run_logs_dir, f"{base}.stderr.txt")
+
                 store.append_event(
                     EventCreate(
                         context_id=run.context_id,
@@ -153,6 +172,62 @@ def execute_run(store: MemoryStore, run: OrchestrationRun, plan: PlanV1) -> None
                         data={"command": action.command, "cwd": action.cwd},
                     )
                 )
+
+                # Prepare env and timeout
+                env = os.environ.copy()
+                try:
+                    # Only merge if provided and is a dict of strings
+                    if getattr(action, "env", None):
+                        env.update({str(k): str(v) for k, v in action.env.items()})
+                except Exception:
+                    # Ignore malformed env
+                    pass
+                timeout_s = float(os.getenv("BROKER_SUBPROCESS_TIMEOUT", "120"))
+
+                started = time.monotonic()
+                returncode: Optional[int]
+                timed_out = False
+                try:
+                    proc = subprocess.run(  # nosec B603
+                        action.command,
+                        cwd=action.cwd or None,
+                        env=env,
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout_s,
+                        check=False,
+                    )
+                    returncode = proc.returncode
+                    # Write outputs to files
+                    try:
+                        with open(stdout_path, "w", encoding="utf-8") as f_out:
+                            f_out.write(proc.stdout or "")
+                    except Exception:
+                        pass
+                    try:
+                        with open(stderr_path, "w", encoding="utf-8") as f_err:
+                            f_err.write(proc.stderr or "")
+                    except Exception:
+                        pass
+                except subprocess.TimeoutExpired as te:  # pragma: no cover - edge
+                    timed_out = True
+                    returncode = None
+                    # Best effort: write partial output if available
+                    try:
+                        with open(stdout_path, "w", encoding="utf-8") as f_out:
+                            if te.stdout:
+                                f_out.write(te.stdout)
+                    except Exception:
+                        pass
+                    try:
+                        with open(stderr_path, "w", encoding="utf-8") as f_err:
+                            if te.stderr:
+                                f_err.write(te.stderr)
+                    except Exception:
+                        pass
+
+                duration_ms = int((time.monotonic() - started) * 1000)
+
                 store.append_event(
                     EventCreate(
                         context_id=run.context_id,
@@ -160,9 +235,23 @@ def execute_run(store: MemoryStore, run: OrchestrationRun, plan: PlanV1) -> None
                         category="orchestration",
                         type="subprocess_completed",
                         actor="broker",
-                        data={"command": action.command, "cwd": action.cwd, "returncode": 0},
+                        data={
+                            "command": action.command,
+                            "cwd": action.cwd,
+                            "returncode": returncode,
+                            "timed_out": timed_out,
+                            "duration_ms": duration_ms,
+                            "stdout_log": stdout_path,
+                            "stderr_log": stderr_path,
+                        },
                     )
                 )
+
+                # If the subprocess failed or timed out, mark run failed and abort further actions
+                if timed_out or (returncode is not None and returncode != 0):
+                    raise RuntimeError(
+                        f"subprocess failed: rc={returncode} timed_out={timed_out} cmd={' '.join(action.command)}"
+                    )
             else:  # pragma: no cover - defensive
                 raise ValueError(f"unsupported action type: {getattr(action, 'type', 'unknown')}")
 
