@@ -157,6 +157,9 @@ def execute_run(store: MemoryStore, run: OrchestrationRun, plan: PlanV1) -> None
                 # Safety: do not log environment values; write streams to files and reference their paths in events.
                 run_logs_dir = os.path.join("logs", "runs", run.id)
                 os.makedirs(run_logs_dir, exist_ok=True)
+                # Default working directory per run if not provided
+                default_cwd = os.path.join("runs", run.id)
+                os.makedirs(default_cwd, exist_ok=True)
                 base = f"subprocess_{sp_index:03d}"
                 sp_index += 1
                 stdout_path = os.path.join(run_logs_dir, f"{base}.stdout.txt")
@@ -182,6 +185,9 @@ def execute_run(store: MemoryStore, run: OrchestrationRun, plan: PlanV1) -> None
                 except Exception:
                     # Ignore malformed env
                     pass
+                # Inject minimal, safe broker context into environment
+                env.setdefault("BROKER_RUN_ID", run.id)
+                env.setdefault("BROKER_CONTEXT_ID", run.context_id)
                 timeout_s = float(os.getenv("BROKER_SUBPROCESS_TIMEOUT", "120"))
 
                 started = time.monotonic()
@@ -190,7 +196,7 @@ def execute_run(store: MemoryStore, run: OrchestrationRun, plan: PlanV1) -> None
                 try:
                     proc = subprocess.run(  # nosec B603
                         action.command,
-                        cwd=action.cwd or None,
+                        cwd=action.cwd or default_cwd,
                         env=env,
                         capture_output=True,
                         text=True,
