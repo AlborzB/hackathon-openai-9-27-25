@@ -56,6 +56,8 @@ class CodexPlanner:
 
     command: List[str]
     timeout_secs: int = 60
+    use_stdin: bool = True
+    prompt_flag: Optional[str] = None
 
     @staticmethod
     def from_env() -> "CodexPlanner":
@@ -67,18 +69,37 @@ class CodexPlanner:
             cmd_str = "codex chat --model o4-mini"
         cmd = shlex.split(cmd_str)
         t = int(os.getenv("BROKER_PLANNER_TIMEOUT", "60"))
-        return CodexPlanner(command=cmd, timeout_secs=t)
+        use_stdin_env = os.getenv("BROKER_PLANNER_USE_STDIN", "1").strip().lower()
+        use_stdin = use_stdin_env not in ("0", "false", "no")
+        prompt_flag = None
+        if not use_stdin:
+            prompt_flag = os.getenv("BROKER_PLANNER_PROMPT_FLAG", "-p")
+        return CodexPlanner(command=cmd, timeout_secs=t, use_stdin=use_stdin, prompt_flag=prompt_flag)
 
     def plan(self, *, context_id: str, prompt: str) -> PlanV1:
         planning_prompt = self._build_prompt(context_id=context_id, user_prompt=prompt)
-        proc = subprocess.run(
-            self.command,
-            input=planning_prompt,
-            capture_output=True,
-            text=True,
-            timeout=self.timeout_secs,
-            check=False,
-        )
+        if self.use_stdin:
+            proc = subprocess.run(
+                self.command,
+                input=planning_prompt,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout_secs,
+                check=False,
+            )
+        else:
+            # Append prompt to the command via a flag, e.g., ["claude", "-p", planning_prompt]
+            cmd = list(self.command)
+            if self.prompt_flag:
+                cmd.append(self.prompt_flag)
+            cmd.append(planning_prompt)
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout_secs,
+                check=False,
+            )
         if proc.returncode != 0:
             raise RuntimeError(f"planner process failed (exit {proc.returncode})")
         stdout = proc.stdout or ""

@@ -229,4 +229,9 @@ Use this checklist to drive implementation. Update this document as changes land
   - `export BROKER_PLANNER=codex`
   - `export BROKER_PLANNER_COMMAND="codex chat --model o4-mini"`
 - Planning timeout: `BROKER_PLANNER_TIMEOUT` (seconds, default: 60).
+- Input mode:
+  - Default is stdin: the broker writes the planning prompt to the CLI's stdin.
+  - For CLIs that require a `-p <prompt>` style arg, set:
+    - `export BROKER_PLANNER_USE_STDIN=0`
+    - `export BROKER_PLANNER_PROMPT_FLAG=-p` (or appropriate flag)
 - Security: the broker does not read or log credentials; Codex CLI must be configured separately (e.g., `~/.codex/auth.json`).
