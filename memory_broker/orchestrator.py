@@ -308,6 +308,19 @@ def plan_and_execute_run(store: MemoryStore, run: OrchestrationRun) -> None:
         planner = get_planner()
         plan = planner.plan(context_id=run.context_id, prompt=run.prompt)
 
+        # Persist the full plan payload for observability
+        try:
+            run_dir = os.path.join("runs", run.id)
+            os.makedirs(run_dir, exist_ok=True)
+            plan_path = os.path.join(run_dir, "plan.json")
+            # Avoid importing json at top-level to keep deps minimal here
+            import json  # noqa: PLC0415
+
+            with open(plan_path, "w", encoding="utf-8") as f:
+                json.dump(plan.model_dump(mode="json"), f, indent=2)
+        except Exception:
+            plan_path = None
+
         # Emit plan-ready event (distinct from initial planning_started)
         store.append_event(
             EventCreate(
@@ -317,7 +330,12 @@ def plan_and_execute_run(store: MemoryStore, run: OrchestrationRun) -> None:
                 type="plan_ready",
                 actor="broker",
                 message="deterministic_plan_ready",
-                data={"actions": [getattr(a, "type", "?") for a in plan.actions]},
+                data={
+                    "action_types": [getattr(a, "type", "?") for a in plan.actions],
+                    "action_count": len(plan.actions),
+                    "agent_count": len(plan.agents or []),
+                    **({"plan_log": plan_path} if plan_path else {}),
+                },
             )
         )
 
