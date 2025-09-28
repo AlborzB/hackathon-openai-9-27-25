@@ -3,7 +3,7 @@
 ## Overview
 - Goal: Orchestrate multiple autonomous agents to build a full‑stack app from a single user prompt, escalating to the user only on impasses.
 - Frontend displays an audit trail sourced from broker events and memories; user prompts the system via UI.
-- Broker invokes Codex CLI as isolated subprocesses to maintain separate LLM contexts per agent.
+- Planner can invoke a local CLI (Codex/Claude/etc.) to produce a deterministic plan; per‑agent execution sessions are planned as a follow‑up.
 
 ## Components
 - OrchestrationRun
@@ -14,14 +14,14 @@
 - Agents
   - Created on demand (upsert by name). One LLM context per agent via a separate Codex CLI subprocess and per‑agent working dir.
 - Orchestrator
-  - Executes the LLM planning call (Codex CLI subprocess), validates its deterministic JSON output, and performs actions (ensure agents, create tasks, append memories, spawn agent sessions, etc.).
+  - Executes the planning call (via CLI when configured), validates deterministic JSON output, and performs actions (create agents, agent messages, create tasks, handoffs, subprocess.run). Per‑agent sessions are a planned enhancement.
   - Planner backends:
     - `mock` (default): deterministic local plan suitable for dev/demo.
     - `codex`: shells out to Codex CLI configured on the host to obtain a PlanV1 JSON (no creds are read or logged by the broker).
 - Frontend
   - Shows audit trail by calling GET endpoints for runs/events (and memories). Posts prompts that start orchestrations.
 
-## Proposed HTTP API Additions (MVP)
+## HTTP API (MVP — Implemented)
 - POST `/orchestrations`
   - Start a run with `{ context_id, prompt, policy }` and return `{ id, status, created_at, ... }`.
 - GET `/orchestrations/{id}`
@@ -38,7 +38,7 @@
   - `id: str`
   - `context_id: str`
   - `prompt: str`
-  - `status: Literal["pending","running","blocked","done","error","canceled"]`
+  - `status: Literal["pending","running","completed","failed","canceled"]`
   - `policy: { impasse_after?: int | duration, max_attempts_per_step?: int, require_user_confirmation?: bool }`
   - `created_at: datetime`
 - Event
@@ -46,34 +46,36 @@
   - `run_id: str`
   - `context_id: str`
   - `agent_id?: str`
-  - `type: Literal["info","plan","ensure_agents","task_created","memory_appended","command_executed","error","escalation","done"]`
+  - `type: str` — common values include `user_message`, `plan`, `plan_ready`, `run_started`, `action_start`, `action_end`, `agent_created`, `task_created`, `task_updated`, `handoff_recorded`, `memory_added`, `repo_linked`, `subprocess_started`, `subprocess_completed`, `run_completed`, `run_failed`, `run_canceled`.
   - `message: str`
   - `data: dict`
-  - `ts: datetime`
+  - `created_at: datetime`
 
 ## Deterministic LLM Output Schema (v1)
 - Top‑level
   - `version: "1"`
-  - `agents: [{ name: str, role: str, notes?: str }]`
-  - `steps: Action[]`
+  - `agents: [{ name: string, role?: string, kind?: "agent"|"human", metadata?: object }]`
+  - `actions: Action[]`
 - Action (whitelist)
-  - `{"type": "ensure_agents", "agents": [{"name": "backend", "role": "backend_dev"}, ...]}`
-  - `{"type": "create_task", "args": {"context_id": "...", "title": "...", "description": "...", "assignee": "backend"}}`
-  - `{"type": "append_memory", "args": {"context_id": "...", "author": "pm", "text": "...", "tags": ["plan"]}}`
-  - `{"type": "run_codex_session", "args": {"agent": "frontend", "goal": "scaffold UI", "working_dir": "runs/<run_id>/frontend"}}`
+  - `{"type": "create_agent", "spec": {"name": "...", "kind": "agent"|"human"}}`
+  - `{"type": "message", "agent_id": "...", "content": "..."}`
+  - `{"type": "task.create", "context_id": "...", "payload": {"title": "...", "assignee"?: "...", "tags"?: ["..."]}}`
+  - `{"type": "handoff", "payload": {"from": "...", "to": "...", "context": "...", "task": "...", "summary": "..."}}`
+  - `{"type": "subprocess.run", "command": ["..."], "env"?: {"K": "V"}, "cwd"?: "..."}`
 - Validation
   - Parse with Pydantic; reject unknown `type` values or missing fields.
   - Execute actions strictly in order; emit events before/after each action.
 
 ## Execution Flow (High Level)
 1) UI posts prompt to broker to create an `OrchestrationRun`.
-2) Broker persists the run and emits a `plan` event.
-3) Orchestrator starts a Codex CLI subprocess (separate context) to obtain a deterministic plan.
-4) Orchestrator validates the JSON plan against schema v1.
+2) Broker persists the run and emits `user_message` and `plan` (planning_started) events.
+3) Orchestrator obtains a plan via the configured planner:
+   - `mock` returns a deterministic local plan; `codex` shells out to the configured CLI with a strict prompt and expects JSON only.
+4) Orchestrator validates the JSON plan against schema v1 and emits `plan_ready`.
 5) Orchestrator executes actions in order:
-   - Ensure/create agents; create tasks; append memories; spawn per‑agent Codex sessions with goals and isolated working dirs.
-6) For each action, append events; on errors, retry per policy; escalate if thresholds reached.
-7) UI polls run events and displays audit trail; only prompts user on broker `escalation` events.
+   - Create agents; emit messages; create tasks; record handoffs; emit `subprocess_started`/`subprocess_completed` for `subprocess.run` (currently stubbed; per‑agent sessions to follow).
+6) For each action, append `action_start`/`action_end` plus domain events; on errors, retry per policy; escalate if thresholds reached (policy knobs are present but not yet enforced).
+7) UI polls run events and displays audit trail; user is prompted only on escalation events (future policy).
 
 ## Mermaid Sequence Diagram
 ```mermaid
@@ -85,36 +87,37 @@ sequenceDiagram
     participant Store as Store (Agents/Tasks/Memories/Events)
 
     UI->>Broker: POST /orchestrations {prompt, context_id, policy}
-    Broker->>Store: Create OrchestrationRun; append plan event
+    Broker->>Store: Create OrchestrationRun; append user_message + plan events
     Broker->>Orch: Start run (internal)
 
-    Orch->>LLM: Run Codex CLI with planning prompt
-    LLM-->>Orch: Deterministic JSON plan (agents + steps)
-    Orch->>Store: Event(plan) with summary
+    Orch->>LLM: If BROKER_PLANNER=codex, invoke planner CLI
+    LLM-->>Orch: Deterministic JSON plan (PlanV1)
+    Orch->>Store: Event(plan_ready) with actions summary
 
     loop For each Action
-        Orch->>Store: Event(info) action-start
-        alt ensure_agents
-            Orch->>Store: Upsert Agents; Event(ensure_agents)
-        else create_task
+        Orch->>Store: Event(action_start)
+        alt create_agent
+            Orch->>Store: Upsert Agent; Event(agent_created)
+        else message
+            Orch->>Store: Event(agent_message)
+        else task.create
             Orch->>Store: Add Task; Event(task_created)
-        else append_memory
-            Orch->>Store: Add Memory; Event(memory_appended)
-        else run_codex_session
-            Orch->>LLM: Start agent session (isolated working dir)
-            LLM-->>Orch: Outputs/artifacts
-            Orch->>Store: Event(command_executed)
+        else handoff
+            Orch->>Store: Record Handoff; Event(handoff_recorded)
+        else subprocess.run
+            Orch->>Store: Event(subprocess_started)
+            Orch-->>Store: Event(subprocess_completed)  %% stubbed execution
         end
-        Orch->>Store: Event(info) action-end
+        Orch->>Store: Event(action_end)
     end
 
     opt Error or Stall
-        Orch->>Store: Event(error)
-        Orch->>Store: Event(escalation) with prompt to user
+        Orch->>Store: Event(run_failed)
+        Orch->>Store: Event(escalation) with prompt to user  %% future policy
         UI->>Broker: User input only if escalated
     end
 
-    Orch->>Store: Event(done)
+    Orch->>Store: Event(run_completed)
     Broker-->>UI: GET /orchestrations/{id}/events (audit trail)
 ```
 
@@ -133,7 +136,7 @@ sequenceDiagram
 2) Add endpoints: create run, get run, list run events, list context events.
 3) Implement orchestrator stub that simulates plan execution and appends events (no real CLI yet) for frontend integration.
 4) Implement deterministic plan parser and whitelist action executor.
-5) Integrate Codex CLI subprocess for planning and `run_codex_session` actions, with isolated working dirs and logging.
+5) Integrate planner CLI subprocess for planning; follow‑up: per‑agent execution sessions and logging.
 
 ## Future Enhancements
 - Server‑Sent Events (SSE) or WebSockets for live UI updates.
@@ -168,12 +171,12 @@ Use this checklist to drive implementation. Update this document as changes land
   - [x] On `POST /contexts/{id}/tasks`: emit `task_created` event.
   - [x] On `PATCH /contexts/{id}/tasks/{task_id}`: emit `task_updated` event.
   - [x] On `POST /handoffs`: emit `handoff_recorded` event.
-  - [x] On `POST /contexts/{id}/memories`: emit `memory_appended` event.
+  - [x] On `POST /contexts/{id}/memories`: emit `memory_added` event.
   - [x] Standardize `data` payloads (include relevant ids: task_id, memory_id, handoff_id, repo, etc.).
 
 - [ ] Event Schema & Filtering
-  - [x] Add `category` computed on the backend for filtering (decision | incident | progress | task | handoff).
-  - [x] Add `actor` to identify event origin ("user" | agent_id | "system").
+  - [x] Add `category` for filtering (`user|plan|orchestration|agent|task|handoff|memory|repo|broker|system`).
+  - [x] Add `actor` to identify event origin ("user" | "broker" | "agent").
   - [x] Support query params for events endpoints: `?agent_id=&type=&category=&tag=&repo=&limit=&after=` (partial: `agent_id,type,category,tag,limit`).
   - [x] Ensure chronological sort and pagination (cursor by event id implemented; stable ordering).
 
@@ -181,30 +184,30 @@ Use this checklist to drive implementation. Update this document as changes land
   - [x] Implement Pydantic models for schema v1 (top-level + actions whitelist).
   - [x] Parser/validator that rejects unknown actions and missing fields.
   - [x] Map actions to store/api operations; emit events before/after each action.
-  - [ ] Versioning strategy (`version: "1"`) for forward compatibility.
+  - [x] Versioning strategy: baseline `version: "1"` enforced.
 
 - [ ] Orchestrator Runner
-  - [ ] `orchestrator.py` service to execute runs asynchronously. (Current: synchronous when `plan` provided; background planner+executor added for no-plan runs.)
-  - [ ] Spawn Codex CLI subprocess for planning (separate working dir per run).
-  - [ ] Spawn per-agent Codex sessions for `run_codex_session` with isolated dirs (`runs/<run>/<agent>/`).
-  - [ ] Log subprocess stdout/err to run-scoped files; emit `agent_message` or `command_executed` events.
+  - [x] Background planning+execution path via FastAPI `BackgroundTasks` (inline plan executes synchronously).
+  - [x] Spawn planner CLI subprocess for planning (`BROKER_PLANNER_COMMAND`).
+  - [ ] Per‑agent execution sessions with isolated dirs (`runs/<run>/<agent>/`).
+  - [ ] Log subprocess stdout/err to run‑scoped files; emit richer execution events.
   - [ ] Respect escalation policy: retries, timeouts, `impasse_after`, `max_attempts_per_step`.
-  - [ ] Never read or log credentials; rely on Codex CLI configuration. If needed, pass path via env var without printing.
+  - [x] Never read or log credentials; rely on Codex/CLI configuration.
 
 - [ ] Deduplication & Idempotency
   - [x] Avoid duplicate repo entries on repeated link calls.
-  - [ ] Agent upsert remains idempotent by name; document behavior.
-  - [ ] Context creation idempotent by normalized name; document behavior.
+  - [x] Agent upsert idempotent by name (documented in Components).
+  - [x] Context creation idempotent by normalized name (e.g., spaces→dashes).
 
 - [ ] Memories & Search
   - [ ] Extend memories listing to support `?tag=` filter in addition to `q`.
-  - [ ] Confirm MemoryItem.refs cover required types (file, url, issue, pr) for UI refs panel.
+  - [x] Confirm `MemoryItem.refs` cover types (file, url, repo, issue, pr).
 
 - [ ] Frontend Contract (Docs)
-  - [ ] Document event types → UI categories mapping in README/docs.
-  - [ ] Provide example payloads for key events and list endpoints.
-  - [ ] Provide recommended polling intervals and pagination usage.
-  - [ ] Include run status surface for Top Bar (Running/Blocked/Done).
+  - [x] Document event types → UI categories mapping (`docs/frontend_contracts.md`).
+  - [x] Provide example payloads for key events and list endpoints.
+  - [x] Provide recommended polling intervals and pagination usage.
+  - [x] Include run status sequences (see "Run Lifecycle").
 
 - [ ] Observability & Delivery
   - [ ] Consider SSE/WebSockets for events (follow-up milestone).
